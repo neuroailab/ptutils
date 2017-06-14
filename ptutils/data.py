@@ -1,7 +1,11 @@
 from __future__ import division, print_function, absolute_import
 
 import h5py
-import torch
+from .dataloader import *
+
+import torchvision.datasets as dsets
+import torchvision.transforms as transforms
+from torch.utils.data import Dataset as dset
 
 
 class DataProvider(object):
@@ -16,7 +20,7 @@ class DataProvider(object):
 
     Critically, a `DataProvider` subclass must implement a
 
-        `get_dataloader`
+        `get_data_loader`
 
     method that accepts an arbitrary, user-defined request for data and returns a
     valid `torch.utils.data.dataloader` object. This request can be conditioned on
@@ -31,29 +35,29 @@ class DataProvider(object):
     def __init__(self):
         pass
 
-    def get_dataloader(self):
+    def get_data_loader(self):
         """Return a `torch.utils.data.dataloader` given an arbitrary data request."""
         raise NotImplementedError()
 
 
-class Dataset(torch.utils.data.Dataset):
+class Dataset(dset):
     """Interface for all Dataset subclasses.
 
     This class simply extends Pytorch's Dataset class to be able to load data
     in different formats by introducing the notion of a `DataReader` and
-    `preprocessor`.
+    `transform`.
     """
     def __init__(self):
         self.data_source = None
         self.data_reader = None
-        self.preprocessor = None
+        self.transform = None
 
     def __getitem__(self, index):
         """Must return a data item given an index in [0, 1, ..., self.__len__()].
 
         Recommended implementation:
 
-        1. Using `self.data_reader`, read data from `self.data_source` efficiently.
+        1. Using `self.data_loader`, read data from `self.data_source` efficiently.
         2. Preprocess the data using `self.preprocessor`.
         3. Return a data item (e.g. image and label)
         """
@@ -77,8 +81,9 @@ class DataReader(object):
         """Loads data from `data_source` into a dictionary of array-like objects.
 
         The structure of the data dictionary should reflect intrinsic structure
-        of the data source. The `Dataset` class will be responsible for parsing
-        this dict.
+        of the data source (e.g., if a dataset is partitioned into distinct sets
+        such as train/val and testing data, data_dict.keys() should relfect this.
+        The `Dataset` class will be responsible for parsing this dict.
 
         Should be overriden by all subclasses.
         """
@@ -89,19 +94,112 @@ class DataReader(object):
         return data_dict
 
 
-class HDF5DataReader(object):
+class MNISTProvider(DataProvider):
+    def __init__(self):
+        self.dataset = {}
+        self.modes = ['train', 'test']
+        for mode in self.modes:
+            self.dataset[mode] = dsets.MNIST(root='../tests/data/',
+                                             train=(mode == 'train'),
+                                             transform=transforms.ToTensor(),
+                                             download=True)
 
-    def __init__(self, hdf5_file_path):
-        self.file_path = hdf5_file_path
+    def get_data_loader(self, mode='train', batch_size=100):
+        return DataLoader(dataset=self.dataset[mode],
+                          batch_size=batch_size,
+                          shuffle=(mode == 'train'))
 
-    def read(self):
-        self.data_dict = h5py.File(self.hdf5_file_path, 'r')
-    return self.data_dict
+
+class CIFARProvider(DataProvider):
+    def __init__(self):
+        self.modes = ['train', 'test']
+        self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
+        for mode in self.modes:
+            self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/data/',
+                                                           train=(mode == 'train'),
+                                                           transform=transforms.ToTensor(),
+                                                           download=True)
+            self.datasets['CIFAR100'][mode] = dsets.CIFAR100(root='../tests/data/',
+                                                             train=(mode == 'train'),
+                                                             transform=transforms.ToTensor(),
+                                                             download=True)
+
+    def get_data_loader(self, dataset='CIFAR10', mode='train', batch_size=100):
+            return DataLoader(dataset=self.datasets[dataset][mode],
+                              batch_size=batch_size,
+                              pin_memory=True,
+                              shuffle=(mode == 'train'))
+
+
+class ImageNetProvider(DataProvider):
+
+    def __init__(self, ImageNet):
+        self.ImageNet = ImageNet
+
+    def get_data_loader(self, mode='train'):
+
+        self.ImageNet.mode = mode
+        data_loader = DataLoader(dataset=self.ImageNet,
+                                 batch_size=100,
+                                 shuffle=True,
+                                 pin_memory=True,
+                                 num_workers=2)
+        return data_loader
 
 
 class ImageNet(Dataset):
+    """ImageNet Dataset class."""
 
-    def __init__(self, data_source, data_reader, preprocessor=None):
+    def __init__(self, data_source, data_reader, transform=None):
         self.data_source = data_source
         self.data_reader = data_reader
-        self.preprocessor = preprocessor
+        self.transform = transform
+
+        # TODO: Error checking
+        self.data_dict = self.data_reader(self.data_source)
+        self.val = self.data_dict['val']
+        self.train = self.data_dict['train']
+        self.train_val = self.data_dict['train_val']
+        self.mode = self.data_dict.keys()[0]
+
+    def __getitem__(self, index):
+        """Must return an (image, label) tuple given an index."""
+
+        image = self.data_dict[self.mode]['images'][index, ...]
+        label = self.data_dict[self.mode]['labels'][index, ...]
+
+        if self.transform is not None:
+            image = self.transform(image)
+
+        return (image, label)
+
+    def __len__(self):
+        return self.data_dict[self.mode]['images'].shape[0]
+
+
+class HDF5DataReader(DataReader):
+    """Return an HDF5 file object given a path to an HDF5 file."""
+
+    def __init__(self):
+        self.data_dict = None
+
+    def read(self, hdf5_file_path):
+        self.data_dict = h5py.File(hdf5_file_path, 'r')
+        return self.data_dict
+
+
+class TFRecordReader(DataReader):
+    def __init__(self):
+        self.data_dict = None
+
+    def read(self, tfrecord_path):
+        rec_iter = tf.python_io.tf_record_iterator(path=tfrecord_path)
+        datum = tf.train.Example()
+
+        # TODO: iterate of records
+        # TODO: insert each datum into a torch tensor
+        for rec in rec_iter:
+            datum.ParseFromString(rec)
+            data_str = (datum.features.feature['images'].bytes_list.value[0])
+            img_1d = np.fromstring(data_str, dtype=np.uint8)
+            img = img_1d.reshape((160, 375, -1))

@@ -118,6 +118,7 @@ class MongoInterface(DBInterface):
             doc['insertion_date'] = datetime.datetime.now()
 
             # Insert into the collection and restore full data into original document object
+            docCopy = self._dot_to_vbar(docCopy)
             new_id = self.collection.save(docCopy)
             doc['_id'] = new_id
             object_ids.append(new_id)
@@ -162,12 +163,13 @@ class MongoInterface(DBInterface):
         Returns:
             all_results: list of full documents from the collection
         """
+        query = self._dot_to_vbar(query)
         results = self.collection.find(query)
 
         if get_tensors:
-            all_results = [self._load_tensor(doc) for doc in results]
+            all_results = [self._vbar_to_dot(self._load_tensor(doc)) for doc in results]
         else:
-            all_results = [doc for doc in results]
+            all_results = [self._vbar_to_dot(doc) for doc in results]
 
         if all_results:
             if len(all_results) > 1:
@@ -224,6 +226,26 @@ class MongoInterface(DBInterface):
         """
         return pickle.loads(binary)
 
+    def _dot_to_vbar(self, document):
+        """Convert periods in dictionary keys to vertical bars (|)."""
+        for (key, value) in document.items():
+            if isinstance(value, dict):
+                self._dot_to_vbar(value)
+            else:
+                new_key = key.replace('.', '|')
+                document[new_key] = document.pop(key)
+        return document
+
+    def _vbar_to_dot(self, document):
+        """Convert vertical bars (|) in dictionary keys to to periods."""
+        for (key, value) in document.items():
+            if isinstance(value, dict):
+                self._dot_to_vbar(value)
+            else:
+                new_key = key.replace('|', '.')
+                document[new_key] = document.pop(key)
+        return document
+
     def _load_tensor(self, document):
         """Utility method to recurse through a document and gather all ObjectIds and
         replace them one by one with their corresponding data from the gridFS collection.
@@ -278,12 +300,12 @@ class MongoInterface(DBInterface):
                     print('Checking if {} is already in the db... '.format(tensor_id))
                     if data_MD5 == self.fs.get(tensor_id).md5:
                         match = True
-                        print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
+                        # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
                         document[key] = tensor_id
                         self._old_tensor_ids.remove(tensor_id)
                         self._new_tensor_ids.append(tensor_id)
                 if not match:
-                    print('Tensor is not in the db. Inserting new gridfs file...')
+                    # print('Tensor is not in the db. Inserting new gridfs file...')
                     tensor_id = self.fs.put(self._tensor_to_binary(value))
                     document[key] = tensor_id
                     self._new_tensor_ids.append(tensor_id)
