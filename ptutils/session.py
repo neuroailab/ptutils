@@ -31,21 +31,27 @@ class Session(object):
                  optimizer=None,
                  data_provider=None):
 
-        # TODO: determine the standard procedure for creating a session:
-        # Option 1: parse a config dict that either contains the session
-        #           objects as elements or specifies params neccessary
-        #           for the session to create them.
-        # Option 2: Users subclass a BaseConfig class whose methods return
-        #           all the neccessary session objects.
-        # Option 3: Users manual assign session objects as regular attributes.
+        """
+        TODO: determine the standard procedure for creating a session:
+        Option 1: parse a config dict that either contains the session
+                  objects as elements or specifies params neccessary
+                  for the session to create them.
+        Option 2: Users subclass a BaseConfig class whose methods return
+                  all the neccessary session objects.
+        Option 3: Users manual assign session objects as regular attributes.
+        """
 
-        # TODO:
-        # (1) Parse config via property assignment.
-        # (2) Use config to load db, if not specified.
-        # (3) Use config and db to get status if not specified, else verify.
-        # (4) Use config and status to load correct model and data
-        #     if not specified, else verify compatability with status.
+        """
+        TODO:
+        (1) Parse config via property assignment.
+        (2) Use config to load db, if not specified.
+        (3) Use config and db to get status if not specified, else verify.
+        (4) Use config and status to load correct model and data
+            if not specified, else verify compatability with status.
+        (5) *** REGISTER ALL SUBSESSIONS AND/OR ptutils.Module
 
+        Maybe everything shoud subclass ptutils.unit/component/element/module
+        """
         self.config = config
         self.model = config['model']
         self.criterion = config['criterion']
@@ -57,6 +63,16 @@ class Session(object):
         # if db is None:
         #     self.db = self._load_db()
 
+        # TODO: Determine Session.run() behavior.
+        # Option 1:
+        #   (1): Check to see if session.run() has been overidden.
+        #       If it has:
+        #           - run user registered pre_run_hook functions.
+        #           - run user's run method.
+        #           - run user registered post_run_hook functions.
+        #   (2): 
+        #   (2): Load model parameters onto GPUs
+        #   (3): 
     @property
     def config(self):
         return self._config
@@ -162,6 +178,63 @@ class Session(object):
                               top5=top5))
         return top1.avg if mode == 'test' else None
 
+    def register_pre_run_hook(self, hook):
+        """Registers a backward hook on the module.
+
+        The hook will be called every time the gradients with respect to module
+        inputs are computed. The hook should have the following signature::
+
+            hook(module, grad_input, grad_output) -> Tensor or None
+
+        The :attr:`grad_input` and :attr:`grad_output` may be tuples if the
+        module has multiple inputs or outputs. The hook should not modify its
+        arguments, but it can optionally return a new gradient with respect to
+        input that will be used in place of :attr:`grad_input` in subsequent
+        computations.
+
+        This function returns a handle with a method ``handle.remove()``
+        that removes the hook from the module.
+        """
+        handle = hooks.RemovableHandle(self._backward_hooks)
+        self._backward_hooks[handle.id] = hook
+        return handle
+
+    def register_post_run_hook(self, hook):
+        """Registers a forward hook on the module.
+
+        The hook will be called every time :func:`forward` computes an output.
+        It should have the following signature::
+
+            hook(module, input, output) -> None
+
+        The hook should not modify the input or output.
+        This function returns a handle with a method ``handle.remove()``
+        that removes the hook from the module.
+        """
+        handle = hooks.RemovableHandle(self._forward_hooks)
+        self._forward_hooks[handle.id] = hook
+        return handle
+
+    def __call__(self, *input, **kwargs):
+        result = self.forward(*input, **kwargs)
+        for hook in self._forward_hooks.values():
+            hook_result = hook(self, input, result)
+            if hook_result is not None:
+                raise RuntimeError(
+                    "forward hooks should never return any values, but '{}'"
+                    "didn't return None".format(hook))
+        if len(self._backward_hooks) > 0:
+            var = result
+            while not isinstance(var, Variable):
+                var = var[0]
+            grad_fn = var.grad_fn
+            if grad_fn is not None:
+                for hook in self._backward_hooks.values():
+                    wrapper = functools.partial(hook, self)
+                    functools.update_wrapper(wrapper, hook)
+                    grad_fn.register_hook(wrapper)
+        return result
+
     def _get_status(self):
         """Compare the config to the db to get status of the session."""
 
@@ -186,7 +259,12 @@ class Session(object):
 
 class Config(object):
     def __init__(self, config_dict):
-        self.config_dict = config_dict
+        self.session = None
+        self.model = config['model']
+        self.criterion = config['criterion']
+        self.optimizer = config['optimizer']
+        self.data_provider = config['data_provider']
+        self.db = config['db_interface']
 
     def get_model(self):
         pass
@@ -196,6 +274,31 @@ class Config(object):
 
     def get_db_interface(self):
         pass
+
+
+"""
+
+Potential config structure:
+
+config.session = {'session_id': session id number,
+                  'description'(optional): description of session,
+                  'status': {'num_run': number of attempted sess.runs,
+                             'run_id': {'init': [new/resume/restart],
+                                        'start_date': start date,
+                                        'state': '[pending/in-progress/complete]',
+                                        'progress': % complete,
+                                        'eta': estimated time to completion,
+                                        'errors': [error1, error2, error3, ...]
+                                        'end_date': end data,
+                                        'outcome': 'outcome description'}}
+                  'history' (optional): {instance_prop1: val, intance_prop2: val, ...}
+                  'subsessions: [subsession1, subsession2, subsession3, ...]}
+config.model = {'model': instance of model class,
+                'name' (optional): model name+description}
+config.criterion = {'criterion': }
+config.optimizer = {'model': instance of model class,
+                'name' (optional): model name+description}
+"""
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, db):
