@@ -10,8 +10,10 @@ from bson.objectid import ObjectId
 
 import torch
 
+from base import Module, Property
 
-class DBInterface(object):
+
+class DBInterface(Module):
     """Interface for all DBInterface subclasses.
 
     Your database class should subclass this interface by maintaining the
@@ -29,8 +31,10 @@ class DBInterface(object):
         Remove `obj` from the database `self.db_name`.
     """
 
-    def __init__(self):
-        self.db_name = None
+    __name__ = 'db_interface'
+
+    def __init__(self, *args, **kwargs):
+        super(DBInterface, self).__init__(*args, **kwargs)
 
     def save(self):
         raise NotImplementedError()
@@ -46,12 +50,14 @@ class MongoInterface(DBInterface):
     """Simple and lightweight mongodb interface for saving experimental data files."""
 
     def __init__(self, db_name, collection_name, hostname='localhost', port=27017):
-        self.db_name = db_name
-        self.collection_name = collection_name
-        self.hostname = hostname
-        self.port = port
+        super(MongoInterface, self).__init__(db_name, collection_name, hostname='localhost', port=27017)
+        # self.db_name = db_name
+        self.db_name = Property(db_name)
+        self.collection_name = Property(collection_name)
+        self.hostname = Property(hostname)
+        self.port = Property(port)
         self.client = pm.MongoClient(hostname, port)
-        self.db = self.client[self.db_name]
+        self.db = self.client[self.db_name.data]
         self.collection = self.db[collection_name]
         self.fs = gridfs.GridFS(self.db)
 
@@ -60,6 +66,9 @@ class MongoInterface(DBInterface):
 
     def __del__(self):
         self._close()
+
+    # def state_dict(self):
+        # pass
 
     # Public methods: ---------------------------------------------------------
 

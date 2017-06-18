@@ -1,14 +1,111 @@
 """"
     Module containing base ptutils objects.
 """
-
+import warnings
 from collections import OrderedDict
+
+from  torch.autograd import Variable
+
+from .utils import Map
+
+DEFAULT_REQUIRES_SAVE = True
+DEFAULT_SAVE_FREQ = 100
 
 
 class Module(object):
 
-    def __init__(self):
+    __name__ = 'module'
+
+    def __init__(self, *args, **kwargs):
+        self.name = None
         self._modules = OrderedDict()
+        self._properties = OrderedDict()
+        if self.name is not None:
+            self.__name__ = self.name
+
+        for i, arg in enumerate(args):
+
+            if isinstance(arg, Property) or isinstance(arg, Module):
+                self._set_named_arg(arg, i)
+
+            if isinstance(arg, dict):
+                for key, value in arg.items():
+                    setattr(self, key, value)
+
+            if isinstance(arg, list):
+                for j, value in enumerate(arg):
+                    if isinstance(arg, Property) or isinstance(arg, Module):
+                        self._set_named_arg(arg, i, j)
+
+        if kwargs:
+            for key, value in kwargs.items():
+                setattr(self, key, value)
+
+    def _set_named_arg(self, arg, i, j=None):
+        if arg.name is not None:
+            setattr(self, arg.name, arg)
+        else:
+            cls_name = arg.__class__.__name__
+            if j is not None:
+                default_name = '{}_{}_{}'.format(cls_name, i, j)
+            else:
+                default_name = '{}_{}'.format(cls_name.lower(), i)
+            warnings.warn('{} does not have a name. Defaulting to: {}'.
+                          format(cls_name, default_name))
+            setattr(self, '{}_{}'.format(default_name, i), arg)
+
+    def register_property(self, name, prop):
+        """Adds a property to the module.
+
+        The property can be accessed as an attribute using given name.
+        """
+        if '_properties' not in self.__dict__:
+            raise AttributeError(
+                "cannot assign property before Module.__init__() call")
+        if prop is None:
+            self._property[name] = None
+        elif not isinstance(prop, Property):
+            raise TypeError("cannot assign '{}' object to property '{}' "
+                            "(ptutils.Property or None required)"
+                            .format(type(prop), name))
+        else:
+            if prop.name is None:
+                prop.name = name
+            elif prop.name is not None and prop.name != name:
+                warnings.warn('Property name ({}) '.format(prop.name) +
+                              'does not match attr name ({}). '.format(name) +
+                              'Proceed with caution ...')
+            self._properties[name] = prop
+
+    def properties(self):
+        """Returns an iterator over module properties.
+
+        Example:
+            >>> for prop in model.properties():
+            >>>     print(prop)
+        """
+        for name, prop in self.named_properties():
+            yield prop
+
+    def named_properties(self, memo=None, prefix=''):
+        """Returns an iterator over module properties, yielding both the
+        name of the properties as well as the property itself.
+
+        Example:
+            >>> for name, prop in self.named_properties():
+            >>>    if name in ['status']:
+            >>>        print(prop)
+        """
+        if memo is None:
+            memo = set()
+        for name, p in self._properties.items():
+            if p is not None and p not in memo:
+                memo.add(p)
+                yield prefix + ('.' if prefix else '') + name, p
+        for mname, module in self.named_children():
+            submodule_prefix = prefix + ('.' if prefix else '') + mname
+            for name, p in module.named_properties(memo, submodule_prefix):
+                yield name, p
 
     def add_module(self, name, module):
         """Adds a child module to the current module.
@@ -102,13 +199,17 @@ class Module(object):
         """
         if destination is None:
             destination = OrderedDict()
+        for name, prop in self._properties.items():
+            if prop is not None:
+                # destination[prefix + name] = prop.data
+                destination[prefix + name] = prop
         for name, module in self._modules.items():
             if module is not None:
                 module.state_dict(destination, prefix + name + '.')
         return destination
 
     def load_state_dict(self, state_dict):
-        """Copies Modules from :attr:`state_dict` into
+        """Copies properties from :attr:`state_dict` into
         this module and its descendants. The keys of :attr:`state_dict` must
         exactly match the keys returned by this module's :func:`state_dict()`
         function.
@@ -117,18 +218,24 @@ class Module(object):
             state_dict (dict): A dict containing modules.
         """
         own_state = self.state_dict()
-        for name, module in state_dict.items():
+        for name, prop in state_dict.items():
             if name not in own_state:
                 raise KeyError('unexpected key "{}" in state_dict'
                                .format(name))
-            if isinstance(module, Module):
-                own_state[name] = module.state_dict()
+            if isinstance(prop, Property):
+                # backwards compatibility for serialized parameters
+                prop = prop
+            own_state[name].copy_(prop)
 
         missing = set(own_state.keys()) - set(state_dict.keys())
         if len(missing) > 0:
             raise KeyError('missing keys in state_dict: "{}"'.format(missing))
 
     def __getattr__(self, name):
+        if '_properties' in self.__dict__:
+            _properties = self.__dict__['_properties']
+            if name in _properties:
+                return _properties[name]
         if '_modules' in self.__dict__:
             modules = self.__dict__['_modules']
             if name in modules:
@@ -137,10 +244,25 @@ class Module(object):
             type(self).__name__, name))
 
     def __setattr__(self, name, value):
+        """Parse value type and register modules and properties as needed."""
         def remove_from(*dicts):
             for d in dicts:
                 if name in d:
                     del d[name]
+
+        props = self.__dict__.get('_properties')
+        if isinstance(value, Property):
+            if props is None:
+                raise AttributeError(
+                    "cannot assign property before Module.__init__() call")
+            remove_from(self.__dict__, self._modules)
+            self.register_property(name, value)
+        elif props is not None and name in props:
+            if value is not None:
+                raise TypeError("cannot assign '{}' as property '{}' "
+                                "(ptutils.Property or None expected)"
+                                .format(type(value), name))
+            self.register_property(name, value)
 
         modules = self.__dict__.get('_modules')
         if isinstance(value, Module):
@@ -158,7 +280,9 @@ class Module(object):
             object.__setattr__(self, name, value)
 
     def __delattr__(self, name):
-        if name in self._modules:
+        if name in self._properties:
+            del self._properties[name]
+        elif name in self._modules:
             del self._modules[name]
         else:
             object.__delattr__(self, name)
@@ -175,9 +299,270 @@ class Module(object):
     def __dir__(self):
         module_attrs = dir(self.__class__)
         attrs = list(self.__dict__.keys())
+        properties = list(self._properties.keys())
         modules = list(self._modules.keys())
-        keys = module_attrs + attrs + modules
+        keys = module_attrs + attrs + properties + modules
         return sorted(keys)
+
+
+class Property(object):
+    """A kind of Property that is to be considered a module property.
+
+    Properties are arbitray python objects that exibit special behavior when
+    used with :class:`Module`s - when they're assigned as Module attributes
+    they are automatically added to the list of its properties, and will
+    appear e.g. in :meth:`~Module.properties` iterator.
+
+    Users should subclass the :class:`Property` class in anyway they please,
+    and assign instances to a `Module` to define its state. These properties
+    will populate a `Module`'s state_dict, which can then be saved automatically
+    for the user.
+
+    group related properties together e.g. status props, config props etc.
+    each group can be assigned meta_properties about saving and logging
+    requires_save, save_freq, log_to_tensorboard, to std out etc.
+    """
+    def __init__(self,
+                 data,
+                 name=None,
+                 requires_save=DEFAULT_REQUIRES_SAVE,
+                 save_freq=DEFAULT_SAVE_FREQ):
+        self.data = data
+        self.name = name
+        self.requires_save = requires_save
+        self.save_freq = save_freq
+
+        if self.name is not None:
+            self.__name__ = self.name
+
+    def __repr__(self):
+        return('{} with name {} containing:\n'.format(self.__class__.__name__,
+                                                      self.name) +
+               '{}\n'.format(self.data.__repr__()) +
+               'Requires save: {}\n'.format(self.requires_save) +
+               'Save Frequency: {}\n'.format(self.save_freq))
+
+
+class Parameter(Property, Variable):
+    """A kind of Property that is to be considered a module parameter.
+
+    Parameters are :class:`~torch.autograd.Variable` subclasses, that have a
+    very special property when used with :class:`Module` s - when they're
+    assigned as Module attributes they are automatically added to the list of
+    its parameters, and will appear e.g. in :meth:`~Module.parameters` iterator.
+    Assigning a Variable doesn't have such effect. This is because one might
+    want to cache some temporary state, like last hidden state of the RNN, in
+    the model. If there was no such class as :class:`Parameter`, these
+    temporaries would get registered too.
+
+    Another difference is that parameters can't be volatile and that they
+    require gradient by default.
+
+    Arguments:
+        data (Tensor): parameter tensor.
+        requires_grad (bool, optional): if the parameter requires gradient. See
+            :ref:`excluding-subgraphs` for more details.
+    """
+    def __new__(cls, data=None, requires_grad=True):
+        return super(Parameter, cls).__new__(cls, data, requires_grad=requires_grad)
+
+    def __repr__(self):
+        return 'Parameter containing:' + self.data.__repr__()
+
+
+class ModuleList(Module):
+    """Holds submodules in a list.
+
+    ModuleList can be indexed like a regular Python list, but modules it contains
+    are properly registered, and will be visible by all Module methods.
+
+    Arguments:
+        modules (list, optional): a list of modules to add
+
+    Example::
+
+        class MyModule(ptutils.Module):
+            def __init__(self):
+                super(MyModule, self).__init__()
+                self.modules = ptutils.ModuleList([Module1, Module2,...]
+
+            def display_modules(self):
+                # ModuleList can act as an iterable, or be indexed using ints
+                for i, m in enumerate(self.modules):
+                    print({}th model is {}.format(i, m))
+    """
+
+    def __init__(self, modules=None):
+        super(ModuleList, self).__init__()
+        if modules is not None:
+            self += modules
+
+    def __getitem__(self, idx):
+        if not (-len(self) <= idx < len(self)):
+            raise IndexError('index {} is out of range'.format(idx))
+        if idx < 0:
+            idx += len(self)
+        return self._modules[str(idx)]
+
+    def __setitem__(self, idx, module):
+        return setattr(self, str(idx), module)
+
+    def __len__(self):
+        return len(self._modules)
+
+    def __iter__(self):
+        return iter(self._modules.values())
+
+    def __iadd__(self, modules):
+        return self.extend(modules)
+
+    def append(self, module):
+        """Appends a given module at the end of the list.
+
+        Arguments:
+            module (nn.Module): module to append
+        """
+        self.add_module(str(len(self)), module)
+        return self
+
+    def extend(self, modules):
+        """Appends modules from a Python list at the end.
+
+        Arguments:
+            modules (list): list of modules to append
+        """
+        if not isinstance(modules, list):
+            raise TypeError("ModuleList.extend should be called with a "
+                            "list, but got " + type(modules).__name__)
+        offset = len(self)
+        for i, module in enumerate(modules):
+            self.add_module(str(offset + i), module)
+        return self
+
+
+
+
+class SubProperty(Property):
+
+    def __init__(self):
+        super(SubProperty, self).__init__()
+
+
+class PropertyGroup(Map):
+    """Holds Properties in an enhanced dict that supports dot notation.
+
+    Passing a python dict to the `PropertyGroup`'s init method automatically
+    converts the values to properties named by the corresponding keys.
+
+    Format:
+        property = PropertyGroup['property_name']
+
+        or equivalently,
+
+        property = PropertyGroup.property_name
+
+    Args:
+        *args (dict): an arbitrary number of dictionaries whose keys
+            are Property names and values are args to the Property
+            init method.
+        *kwargs: an arbitrary number of kwargs where the keywords
+            are property names and the values are args to the
+            Property init method.
+    """
+
+    def __init__(self, *args, **kwargs):
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = Property(v, name=k)
+
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = Property(v, name=k)
+
+
+class Configuration(PropertyGroup):
+    """A Configuration is a PropertyGroup subclass with special behavior.
+
+    When a configuration is passed to a Module's __init__() method,
+    the properties (dict values) are assigned as regular attributes to
+    the module using the corresponding dictionary key as its name:
+
+    Module.key = Configuration[key]
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(PropertyList, self).__init__()
+
+class PropertyList(Module):
+    """Holds Properties in a list.
+
+    PropertyLists can be indexed like a regular Python list, but poperties it contains
+    are properly registered, and will be visible by all Module methods.
+
+    Arguments:
+        properties (list, optional): a list of :class:`ptutils.Property`` to add
+
+    Example::
+
+        class MyModule(ptutils.Module):
+            def __init__(self):
+                super(MyModule, self).__init__()
+                self.config = ptutils.PropertyList([ptutils.Property()])
+
+            def forward(self, x):
+                # PropertyLists can act as an iterable, or be indexed using ints
+                for i, p in enumerate(self.config):
+                    x = self.config[i // 2].mm(x) + p.mm(x)
+                return x
+    """
+
+    def __init__(self, properties=None):
+        super(PropertyList, self).__init__()
+        if properties is not None:
+            self += properties
+
+    def __getitem__(self, idx):
+        if not (-len(self) <= idx < len(self)):
+            raise IndexError('index {} is out of range'.format(idx))
+        if idx < 0:
+            idx += len(self)
+        return self._properties[str(idx)]
+
+    def __setitem__(self, idx, prop):
+        return self.register_property(str(idx), prop)
+
+    def __len__(self):
+        return len(self._properties)
+
+    def __iter__(self):
+        return iter(self._properties.values())
+
+    def __iadd__(self, properties):
+        return self.extend(properties)
+
+    def append(self, property):
+        """Appends a given property at the end of the list.
+
+        Arguments:
+            property (ptutils.Property): parameter to append
+        """
+        self.register_property(str(len(self)), property)
+        return self
+
+    def extend(self, properties):
+        """Appends properties from a Python list at the end.
+
+        Arguments:
+            properties (list): list of properties to append
+        """
+        if not isinstance(properties, list):
+            raise TypeError("Configuration.extend should be called with a "
+                            "list, but got " + type(properties).__name__)
+        offset = len(self)
+        for i, prop in enumerate(properties):
+            self.register_property(str(offset + i), prop)
+        return self
 
 
 def _addindent(s_, numSpaces):

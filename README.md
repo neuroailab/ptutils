@@ -5,7 +5,13 @@ PyTorch utilities for neural network research.
 
 ## Overview
 
+### Basic functionality
 PTUtils will provide functionality for coordinating neural network experiments in PyTorch with varying degrees of control. PTUils will help users construct, run and monitor dynamic neural network models, retrieve data from multiple datasets 'on the fly', and provide an interface for interacting with common databases.
+
+### Creating dynamic experiments
+The 'define-by-run' paradigm established by deep learning frameworks such as Chainer, DyNet, PyTorch offers a powerful new way to structure neural network computations: the execution of the model/graph is conditioned on the state of the model itself, forming a *dynamic graph*. PTUtils attempts to *leverage and extend PyTorch's dynamic nature* by giving researchers a *dynamic experiment* whereby execution of the entire experiment is conditioned on the state of the experiment and any component contained within. The long-term motivation behind this approach is to provide researchers with a dynamic environment in which they can control the behavior/interactions of/between a model/collection of models as well as the data that is presented to the models, while saving the evolution of the environment behind the scenes. 
+
+**Example use case:** Suppose you would like to study the interactions between two agents deployed in a common, simulated environment. Presumably, the behavior of each agent is determined by a separate model, and the data presented to each model is conditioned on the global environmental state. 
 
 ## Proposed Control Flow
 
@@ -16,6 +22,22 @@ The figure below depicts the intended high-level control flow of PTutils. Each m
 The details are explained below.
 ## Proposed API and functionality
 
+### `putils.base`
+
+At the core of PTUtils are the `Module` and `Property` classes, the base classes for all neural network experiments that shamelessly attempt to generalize PyTorch's existing `torch.nn.Module` and `torch.nn.Parameter` classes. A `Module` is a container-like object that optionally exhibits user-defined behavior. All that core components that make up a neural network experiment will subclass the :class:`Module` class. 
+
+`Properties` are arbitray python objects that exibit special behavior when used with :class:`Module`s - when they're assigned as Module attributes they are automatically added to the list of its properties, and will appear e.g. in :meth:`~Module.properties` iterator.
+
+Together, these two classes aim to capture the notion of experiment's state and evolution: at every global step, a `Module` maintains a 'state' defined by its Properties. and can be accesses using the `Module`'s `state_dict()` method. 
+
+Modules will have the ability to contain other Modules as regular attributes, allowing users to nest them in a tree structure. The state of the parent module is therefore determined by the states of the `Modules` it contains. A call to the parent module's state_dict() method will recursively call submodule state_dict() methods, generating a tree structure of properties that defines the overall state.
+
+(different from TF's `Session()`),  that specifically serves to *leverage and extend PyTorch's dynamic nature*. A `Session` object's purpose is to coordinate interactions between an evolving PTUtils `Model`, a `DBInterface` and a `DataProvider` throughout an experiment.
+
+#### `class Module(object)`
+
+#### `class Property(object)`
+
 ### `putils.session`
 
 #### `class Session(object)`
@@ -23,7 +45,7 @@ At the core of PTUtils is the `Session` class (different from TF's `Session()`),
 
 Sessions will have the ability to contain other Sessions as regular attributes, allowing users to nest them in a tree structure. This property gives users a method for managing a large number of related experiments all at once.
 
-The 'define-by-run' paradigm established by Chainer, DyNet, PyTorch offers a powerful new way to structure neural network computations: the execution of the model is conditioned on its own state (or any other related quantity) forming a *dynamic graph*. PTUtils ought to accommodate this flexible nature by giving researchers the *dynamic session* whereby execution of the session is conditioned on the state of the session and any quantity contained within.
+
 
 **Core Session API: TBD**
 

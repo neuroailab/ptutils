@@ -17,8 +17,9 @@ config['model'] = CIFARConv()
 config['criterion'] = nn.CrossEntropyLoss()
 config['optimizer'] = optim.Adam(config['model'].parameters())
 config['data_provider'] = CIFARProvider()
+# config['data_provider'] = None
 config['db_interface'] = MongoInterface(db_name=DB, collection_name=COL)
 config['run'] = {'num_epochs': 50,
                  'batch_size': 128}
 sess = Session(config)
-sess.run()
+# sess.run()

@@ -4,12 +4,14 @@ from collections import OrderedDict
 import torch
 import torch.nn as nn
 
+from base import Module
 
-class Module(nn.Module):
+
+class Model(nn.Module, Module):
     """Wrap nn.Module to change the model.state_dict() separator symbol."""
 
     def __init__(self):
-        super(Module, self).__init__()
+        super(Model, self).__init__()
 
     def state_dict(self, destination=None, prefix=''):
             """Returns a dictionary containing a whole state of the module.
@@ -36,7 +38,7 @@ class Module(nn.Module):
             return destination
 
 
-class CNN(Module):
+class CNN(Model):
     def __init__(self):
         super(CNN, self).__init__()
         self.layer1 = nn.Sequential(
@@ -59,7 +61,7 @@ class CNN(Module):
         return out
 
 
-class DynamicNet(Module):
+class DynamicNet(Model):
     def __init__(self, D_in, H, D_out):
         super(DynamicNet, self).__init__()
         self.input_linear = torch.nn.Linear(D_in, H)
@@ -74,7 +76,7 @@ class DynamicNet(Module):
         return y_pred
 
 
-class AlexNet(Module):
+class AlexNet(Model):
 
     def __init__(self, num_classes=1000):
         super(AlexNet, self).__init__()
@@ -110,7 +112,7 @@ class AlexNet(Module):
         return x
 
 
-class CIFARConv(Module):
+class CIFARConv(Model):
 
     def __init__(self, num_classes=10):
         super(CIFARConv, self).__init__()
@@ -151,7 +153,7 @@ class CIFARConv(Module):
         return x
 
 
-class CIFARConvOld(Module):
+class CIFARConvOld(Model):
     def __init__(self, num_classes=10):
         super(CIFARConv, self).__init__()
         self.layer1 = nn.Sequential(

@@ -2,8 +2,10 @@ import time
 
 from torch.autograd import Variable
 
+from .base import *
 
-class Session(object):
+
+class Session(Module):
     """Coordinates an NN experiment.
 
     Base class for all neural network experiments that specifically serves to
@@ -23,13 +25,17 @@ class Session(object):
     researchers a dynamic session whereby execution of the session is
     conditioned on the state of the session and any quantity contained within.
 """
+
+    __name__ = 'sess'
+
     def __init__(self,
-                 config,
+                 config=None,
                  db=None,
                  model=None,
                  criterion=None,
                  optimizer=None,
                  data_provider=None):
+        super(Session, self).__init__(config, db, model, criterion, optimizer, data_provider)
 
         """
         TODO: determine the standard procedure for creating a session:
@@ -52,12 +58,12 @@ class Session(object):
 
         Maybe everything shoud subclass ptutils.unit/component/element/module
         """
-        self.config = config
-        self.model = config['model']
-        self.criterion = config['criterion']
-        self.optimizer = config['optimizer']
-        self.data_provider = config['data_provider']
-        self.db = config['db_interface']
+        # self.config = config
+        # self.model = config['model']
+        # self.criterion = config['criterion']
+        # self.optimizer = config['optimizer']
+        # self.data_provider = config['data_provider']
+        # self.db = config['db_interface']
 
         # TODO: Error checking.
         # if db is None:
@@ -70,9 +76,9 @@ class Session(object):
         #           - run user registered pre_run_hook functions.
         #           - run user's run method.
         #           - run user registered post_run_hook functions.
-        #   (2): 
+        #   (2):
         #   (2): Load model parameters onto GPUs
-        #   (3): 
+        #   (3):
     @property
     def config(self):
         return self._config

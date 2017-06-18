@@ -1,14 +1,16 @@
 from __future__ import division, print_function, absolute_import
 
-import h5py
+# import h5py
 from .dataloader import *
 
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset as dset
 
+from .base import *
 
-class DataProvider(object):
+
+class DataProvider(Module):
     """Interface for all DataProvider subclasses.
 
     The `DataProvider` class is responsible for parsing incoming requests from
@@ -32,8 +34,8 @@ class DataProvider(object):
     subprocesses to use for data loading.
     See http://pytorch.org/docs/data.html for more details.
     """
-    def __init__(self):
-        pass
+    def __init__(self, *args, **kwargs):
+        super(DataProvider, self).__init__(*args, **kwargs)
 
     def get_data_loader(self):
         """Return a `torch.utils.data.dataloader` given an arbitrary data request."""
@@ -96,6 +98,7 @@ class DataReader(object):
 
 class MNISTProvider(DataProvider):
     def __init__(self):
+        super(MNISTProvider, self).__init__()
         self.dataset = {}
         self.modes = ['train', 'test']
         for mode in self.modes:
@@ -112,6 +115,7 @@ class MNISTProvider(DataProvider):
 
 class CIFARProvider(DataProvider):
     def __init__(self):
+        super(CIFARProvider, self).__init__()
         self.modes = ['train', 'test']
         self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
         for mode in self.modes:
@@ -134,6 +138,7 @@ class CIFARProvider(DataProvider):
 class ImageNetProvider(DataProvider):
 
     def __init__(self, ImageNet):
+        super(ImageNetProvider, self).__init__()
         self.ImageNet = ImageNet
 
     def get_data_loader(self, mode='train'):
