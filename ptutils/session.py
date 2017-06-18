@@ -3,6 +3,8 @@ import time
 from torch.autograd import Variable
 
 from .base import *
+from .data import DataProvider
+from .database import DBInterface
 
 
 class Session(Module):
@@ -28,16 +30,39 @@ class Session(Module):
 
     __name__ = 'sess'
 
-    def __init__(self,
-                 config=None,
-                 db=None,
-                 model=None,
-                 criterion=None,
-                 optimizer=None,
-                 data_provider=None):
-        super(Session, self).__init__(config, db, model, criterion, optimizer, data_provider)
+    def __init__(self, *args, **kwargs):
+        super(Session, self).__init__(*args, **kwargs)
 
         """
+        TODO: determine the standard procedure for creating a session:
+        (1) Iterate over all modules an generate an module inventory by type!
+        (2) If at least one DBInterface is present, generate state_dict() and
+            and query db for previous/related/similar session.
+        (3) If a previous session is found , parse status property.
+        (2) Confirm status with checks below
+            - check to see if children are also session or else
+            - check to see that one child module has/is a dbinterface
+                - if no DBInterface, warn that default session execution procedure cannot proceed
+                    - computations cannot be saved
+                    - previous session cannot be resumed or restarted 
+            - check to see that one child module has/is a dataprovider
+                - if no data_provider, warn that default run procedure cannot proceed
+                    - no data will be provided to the session automatically
+            - check to see that one child module has/is a model
+                - if no model, warn that default run procedure cannot proceed
+                    - no model will be executed
+                    -
+            - check for a mix of sessions and non-sessions
+            - check to see if there are module conflicts
+            - 
+        (2) Check to see if run method has been overridden
+        (3) Use config and db to get status if not specified, else verify.
+        (4) Use config and status to load correct model and data
+            if not specified, else verify compatability with status.
+        (5) *** REGISTER ALL SUBSESSIONS AND/OR ptutils.Module 
+
+        -----------------------------------------------------------------------
+        OLD: 
         TODO: determine the standard procedure for creating a session:
         Option 1: parse a config dict that either contains the session
                   objects as elements or specifies params neccessary
@@ -79,16 +104,16 @@ class Session(Module):
         #   (2):
         #   (2): Load model parameters onto GPUs
         #   (3):
-    @property
-    def config(self):
-        return self._config
+    # @property
+    # def config(self):
+    #     return self._config
 
-    @config.setter
-    def config(self, config):
-        # TODO: Parse config to ensure validity
-        self._config = config
+    # @config.setter
+    # def config(self, config):
+    #     # TODO: Parse config to ensure validity
+    #     self._config = config
 
-    def run(self):
+    def default_run(self):
         """Run an session specified by its configuration and status."""
 
         # TODO: Use status to start/resume session if needed
@@ -221,25 +246,25 @@ class Session(Module):
         self._forward_hooks[handle.id] = hook
         return handle
 
-    def __call__(self, *input, **kwargs):
-        result = self.forward(*input, **kwargs)
-        for hook in self._forward_hooks.values():
-            hook_result = hook(self, input, result)
-            if hook_result is not None:
-                raise RuntimeError(
-                    "forward hooks should never return any values, but '{}'"
-                    "didn't return None".format(hook))
-        if len(self._backward_hooks) > 0:
-            var = result
-            while not isinstance(var, Variable):
-                var = var[0]
-            grad_fn = var.grad_fn
-            if grad_fn is not None:
-                for hook in self._backward_hooks.values():
-                    wrapper = functools.partial(hook, self)
-                    functools.update_wrapper(wrapper, hook)
-                    grad_fn.register_hook(wrapper)
-        return result
+    # def __call__(self, *input, **kwargs):
+    #     result = self.forward(*input, **kwargs)
+    #     for hook in self._forward_hooks.values():
+    #         hook_result = hook(self, input, result)
+    #         if hook_result is not None:
+    #             raise RuntimeError(
+    #                 "forward hooks should never return any values, but '{}'"
+    #                 "didn't return None".format(hook))
+    #     if len(self._backward_hooks) > 0:
+    #         var = result
+    #         while not isinstance(var, Variable):
+    #             var = var[0]
+    #         grad_fn = var.grad_fn
+    #         if grad_fn is not None:
+    #             for hook in self._backward_hooks.values():
+    #                 wrapper = functools.partial(hook, self)
+    #                 functools.update_wrapper(wrapper, hook)
+    #                 grad_fn.register_hook(wrapper)
+    #     return result
 
     def _get_status(self):
         """Compare the config to the db to get status of the session."""

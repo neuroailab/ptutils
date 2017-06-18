@@ -22,7 +22,7 @@ class DataProvider(Module):
 
     Critically, a `DataProvider` subclass must implement a
 
-        `get_data_loader`
+        `provide`
 
     method that accepts an arbitrary, user-defined request for data and returns a
     valid `torch.utils.data.dataloader` object. This request can be conditioned on
@@ -37,19 +37,20 @@ class DataProvider(Module):
     def __init__(self, *args, **kwargs):
         super(DataProvider, self).__init__(*args, **kwargs)
 
-    def get_data_loader(self):
+    def provide(self):
         """Return a `torch.utils.data.dataloader` given an arbitrary data request."""
         raise NotImplementedError()
 
 
-class Dataset(dset):
+class Dataset(Module, dset):
     """Interface for all Dataset subclasses.
 
     This class simply extends Pytorch's Dataset class to be able to load data
     in different formats by introducing the notion of a `DataReader` and
     `transform`.
     """
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super(Dataset, self).__init__(*args, **kwargs)
         self.data_source = None
         self.data_reader = None
         self.transform = None
@@ -70,7 +71,7 @@ class Dataset(dset):
         raise NotImplementedError()
 
 
-class DataReader(object):
+class DataReader(Module):
     """Interface for DataReader subclasses (e.g. HDF5, TFRecords, etc.)
     - Reads data of a specified format efficiently.
     - Exists completely independent of anything ptutils related.
@@ -99,18 +100,23 @@ class DataReader(object):
 class MNISTProvider(DataProvider):
     def __init__(self):
         super(MNISTProvider, self).__init__()
-        self.dataset = {}
         self.modes = ['train', 'test']
         for mode in self.modes:
-            self.dataset[mode] = dsets.MNIST(root='../tests/data/',
-                                             train=(mode == 'train'),
-                                             transform=transforms.ToTensor(),
-                                             download=True)
+            self[mode] = MNIST(root='../tests/data/',
+                                       train=(mode == 'train'),
+                                       transform=transforms.ToTensor(),
+                                       download=True)
 
     def get_data_loader(self, mode='train', batch_size=100):
         return DataLoader(dataset=self.dataset[mode],
                           batch_size=batch_size,
                           shuffle=(mode == 'train'))
+
+class MNIST(Module, dset):
+    def __init__(self, root, train=True, transform=None,
+                 target_transform=None, download=False):
+        super(MNIST, self).__init__(root, train, transform,
+                                    target_transform, download)
 
 
 class CIFARProvider(DataProvider):

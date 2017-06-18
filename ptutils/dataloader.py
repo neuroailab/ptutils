@@ -13,6 +13,7 @@ else:
     import queue
     string_classes = (str, bytes)
 
+from .base import Module
 
 _use_shared_memory = False
 """Whether to use shared memory in default_collate"""
@@ -260,7 +261,7 @@ class DataLoaderIter(object):
             self._shutdown_workers()
 
 
-class DataLoader(object):
+class DataLoader(Module):
     """
     Data loader. Combines a dataset and a sampler, and provides
     single- or multi-process iterators over the dataset.

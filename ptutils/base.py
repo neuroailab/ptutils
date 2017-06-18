@@ -2,7 +2,7 @@
     Module containing base ptutils objects.
 """
 import warnings
-from collections import OrderedDict
+from collections import OrderedDict, MutableMapping
 
 from  torch.autograd import Variable
 
@@ -240,6 +240,8 @@ class Module(object):
             modules = self.__dict__['_modules']
             if name in modules:
                 return modules[name]
+        if name in self.__dict__:
+            return self.__dict__[name]
         raise AttributeError("'{}' object has no attribute '{}'".format(
             type(self).__name__, name))
 
@@ -304,6 +306,12 @@ class Module(object):
         keys = module_attrs + attrs + properties + modules
         return sorted(keys)
 
+    def __getitem__(self, key):
+        return self.__getattr__(key)
+
+    def __setitem__(self, name, value):
+        return self.__setattr__(name, value)
+
 
 class Property(object):
     """A kind of Property that is to be considered a module property.
@@ -341,6 +349,33 @@ class Property(object):
                '{}\n'.format(self.data.__repr__()) +
                'Requires save: {}\n'.format(self.requires_save) +
                'Save Frequency: {}\n'.format(self.save_freq))
+
+
+class Configuration(Property):
+    """A Configuration is a subclass with special behavior.
+
+    When a configuration is passed to a Module's __init__() method,
+    the properties (dict values) are assigned as regular attributes to
+    the module using the corresponding dictionary key as its name:
+
+    Module.key = Configuration[key]
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Property, self).__init__()
+
+class Status(Property):
+    """A Configuration is a Property subclass with special behavior.
+
+    When a configuration is passed to a Module's __init__() method,
+    the properties (dict values) are assigned as regular attributes to
+    the module using the corresponding dictionary key as its name:
+
+    Module.key = Configuration[key]
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Property, self).__init__()
 
 
 class Parameter(Property, Variable):
@@ -440,6 +475,65 @@ class ModuleList(Module):
         return self
 
 
+class ModuleDict(Module):
+    """Holds submodules in a dict.
+
+    ModuleList can be indexed like a regular Python list, but modules it contains
+    are properly registered, and will be visible by all Module methods.
+
+    Arguments:
+        modules (list, optional): a list of modules to add
+
+    Example::
+
+        class MyModule(ptutils.Module):
+            def __init__(self):
+                super(MyModule, self).__init__()
+                self.modules = ptutils.ModuleList([Module1, Module2,...]
+
+            def display_modules(self):
+                # ModuleList can act as an iterable, or be indexed using ints
+                for i, m in enumerate(self.modules):
+                    print({}th model is {}.format(i, m))
+    """
+
+    def __init__(self, modules=None):
+        super(ModuleDict, self).__init__()
+        if modules is not None:
+            self += modules
+
+    def __len__(self):
+        return len(self._modules)
+
+    def __iter__(self):
+        return iter(self._modules.values())
+
+    def __iadd__(self, modules):
+        return self.extend(modules)
+
+    def append(self, name, module):
+        """Inserts a module into the dictionary with key `name`.
+
+        Arguments:
+            name (stf): module name and dict key
+            module (nn.Module): module to append
+        """
+        self.add_module(str(len(self)), module)
+        return self
+
+    def extend(self, modules):
+        """Appends modules from a Python list at the end.
+
+        Arguments:
+            modules (list): list of modules to append
+        """
+        if not isinstance(modules, list):
+            raise TypeError("ModuleList.extend should be called with a "
+                            "list, but got " + type(modules).__name__)
+        offset = len(self)
+        for i, module in enumerate(modules):
+            self.add_module(str(offset + i), module)
+        return self
 
 
 class SubProperty(Property):
@@ -448,7 +542,7 @@ class SubProperty(Property):
         super(SubProperty, self).__init__()
 
 
-class PropertyGroup(Map):
+class PropertyDict(Map):
     """Holds Properties in an enhanced dict that supports dot notation.
 
     Passing a python dict to the `PropertyGroup`'s init method automatically
@@ -481,18 +575,7 @@ class PropertyGroup(Map):
                 self[k] = Property(v, name=k)
 
 
-class Configuration(PropertyGroup):
-    """A Configuration is a PropertyGroup subclass with special behavior.
 
-    When a configuration is passed to a Module's __init__() method,
-    the properties (dict values) are assigned as regular attributes to
-    the module using the corresponding dictionary key as its name:
-
-    Module.key = Configuration[key]
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(PropertyList, self).__init__()
 
 class PropertyList(Module):
     """Holds Properties in a list.
