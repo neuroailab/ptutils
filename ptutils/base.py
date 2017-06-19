@@ -599,9 +599,6 @@ class PropertyDict(Map):
             for k, v in kwargs.items():
                 self[k] = Property(v, name=k)
 
-
-
-
 class PropertyList(Module):
     """Holds Properties in a list.
 

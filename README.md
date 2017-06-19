@@ -20,24 +20,46 @@ The figure below depicts the intended high-level control flow of PTutils. Each m
 ![alt text](control_flow.png "Control Flow")
 
 The details are explained below.
-## Proposed API and functionality
 
-### `putils.base`
+## Proposed design principles
 
-At the core of PTUtils are the `Module` and `Property` classes, the base classes for all neural network experiments that shamelessly attempt to generalize PyTorch's existing `torch.nn.Module` and `torch.nn.Parameter` classes. A `Module` is a container-like object that optionally exhibits user-defined behavior. All that core components that make up a neural network experiment will subclass the :class:`Module` class. 
 
-`Properties` are arbitray python objects that exibit special behavior when used with :class:`Module`s - when they're assigned as Module attributes they are automatically added to the list of its properties, and will appear e.g. in :meth:`~Module.properties` iterator.
+At the core of PTUtils is the `Module`class, the base class for all ptutils objects that shamelessly attempts to generalize PyTorch's existing `torch.nn.Module`. A `Module` is an arbitrary, container-like object that fulfills three simple requirements:
 
-Together, these two classes aim to capture the notion of experiment's state and evolution: at every global step, a `Module` maintains a 'state' defined by its Properties. and can be accesses using the `Module`'s `state_dict()` method. 
+1. All `Module` subclasses must either be **callable** or contain a callable attribute. In other words, all modules must perform an action.
 
-Modules will have the ability to contain other Modules as regular attributes, allowing users to nest them in a tree structure. The state of the parent module is therefore determined by the states of the `Modules` it contains. A call to the parent module's state_dict() method will recursively call submodule state_dict() methods, generating a tree structure of properties that defines the overall state.
+2. All `Module` subclasses must implement a `state_dict()` (potential alias: `state()`) method that returns an object (likely a dict) that reflects the *state* of the module at the time `state_dict()` was called. What constitues a module's '*state*' can be completely specified by the user, although PTUtils offers concrete and sensible options.
 
-(different from TF's `Session()`),  that specifically serves to *leverage and extend PyTorch's dynamic nature*. A `Session` object's purpose is to coordinate interactions between an evolving PTUtils `Model`, a `DBInterface` and a `DataProvider` throughout an experiment.
+3. All `Module` subclasses must implement a `load_state_dict()` (potential alias: `load_state()`) method that accepts the object returned by that module's `state_dict()` method and restores that module to the state it was in when `state_dict()` was called.
 
-#### `class Module(object)`
 
-#### `class Property(object)`
+Enforcing this simple API attempts to address the notion that the environment in which a neural network operates should be free to evolve dynamically just as the network itself is. 
 
+Although users are free to subclass the `Module` class in any way they please, ptutils provides a set of core modules with which users can conveniently carry out neural network experiments. The core putils modules (and their corresponding callables) include:
+
+* `Module.call()`: Base class for all modules that raises a NotImplemented exception when called.
+* `Session.run()`: Carry out a neural network experiement.
+* `Model.forward()`: Execute the forward pass of a neural network model.
+* `DataReader.read()`: Load data of a particular format.
+* `DBInterface.access()`: Interact (read, write and query) with a database. 
+* `DataLoader.__iter__()`: Iterate over data objects in a dataset.
+* `Dataset.__getitem__()`: Return a single data object (image, label pair) from a dataset.
+* `DataProvider.provide()`: Manage all datasets and generate specified `DataLoader`s.
+* `Configuration.configure()`: Generate more complicated modules or groups of modules.
+
+PTUtils will have one very special module: the `State` module. An instance `s` of the `State` class preserves the following:
+
+```python
+    s = s(*args, **kwargs) = s.state_dict(*args, **kwargs) = s.load_state_dict(*args, **kwargs).
+```
+Calling a state object or its two state_dict with any arguments will always return the original state object unmodified. Under the hood, the `State` class is an enhanced python dictionary with support for 'dot' notation and instrospective features such as recognizing any modules it contains.
+
+With the exception of the `Module` base class, all PTUtils modules will come pre-fitted with default behavior that is '*compatible*' with the operation of the other modules. In other words, one can carry out a standard neural network experiment without writing any lines of code, provided that the modules are configured properly, of course. On the other hand, users can (and are encouraged) override any and/or all of the core module methods (within the boundaries of the API) and expect the other modules to remain functional. This flexibility is particularly useful for writing custom training loops while maintaining the same logging/saving behavior.
+ optionally exhibits user-defined behavior. All that core components that make up a neural network experiment will subclass the :class:`Module` class. 
+
+As a flexible container class, Modules can register and call other Modules as regular attributes, allowing users to nest them in a tree structure. The advantage here is that generating the state of a parent module is as simply as collecting the states of its children. Eventually, the states of modules without children will propogate back to the root module.
+
+Many of the core ptutils modules specifically exploit this behavior. 
 ### `putils.session`
 
 #### `class Session(object)`
@@ -110,6 +132,12 @@ You would like to train your own alexnet on ImageNet and then finetune your mode
 ### Additional (bonus) features
 
 *  **Find available GPUs** In your config, specify the cluster details, start your session on node1 and `Session` will parse `sudo salt '*' cmd.run 'nvidia-smi'` (or an equivalent) to run your experiment on a node with available GPUs.
+
+## Proposed API
+
+### `putils.base`
+
+#### `class Module(object)`
 
 #### `class Config(object)`
 Purpose: specify all details necessary to required to run an experiment.

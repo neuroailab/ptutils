@@ -32,46 +32,55 @@ config['info'] = {
     'description': 'description of session (optional)',
     'session_id': 'session id number (unique to the session',
 }
+
 # Make type: SessionProperty
 config['save'] = {
     'save_valid_freq': 20,
     'save_filters_freq': 200,
     'cache_filters_freq': 100,
 }
+
 # Make type: SessionProperty or ModelProperty
 config['train'] = {
-    'n_threads': 4,
     'group': 'train',
+    'num_gpus': 4,
     'num_steps': 500,
     'num_epochs': 10,
+    'num_threads': 4,
     'batch_size': 100,
 }
+
 config['criterion'] = {
     'staircase': True,
     'decay_rate': 0.95,
     'learning_rate': 0.05,
     'decay_steps': 'num_batches_per_epoch',
 }
+
 config['optimizer'] = {
     'staircase': True,
     'decay_rate': 0.95,
     'learning_rate': 0.05,
     'decay_steps': 'num_batches_per_epoch',
 }
+
 config['validation'] = {
-    'n_threads': 4,
-    'group': 'test',
+    'num_gpus': 4,
     'num_steps': 10,
+    'group': 'test',
     'num_epochs': 10,
+    'num_threads': 4,
     'batch_size': 100,
     'agg_func': 'utils.mean_dict',
 }
+
 config['db_interface'] = {
     'port': 27017,
-    'db_name': 'ptutils_db_DEBUG',
     'hostname': 'localhost',
+    'db_name': 'ptutils_db_DEBUG',
     'collection_name': 'ptutils_col_DEBUG',
 }
+
 config['data_provider'] = {
     'provider_name': 'CustomProvider',
     'provide_modes': 'TBD: Likely dict of kwargs',
@@ -97,3 +106,22 @@ config['data_provider'] = {
         }
     }
 }
+
+# model.state_dict().keys()
+# NOT RECOMMENDED
+config['model'] = [
+    'cnn.layer1.0.weight',
+    'cnn.layer1.0.bias',
+    'cnn.layer1.1.weight',
+    'cnn.layer1.1.bias',
+    'cnn.layer1.1.running_mean',
+    'cnn.layer1.1.running_var',
+    'cnn.layer2.0.weight',
+    'cnn.layer2.0.bias',
+    'cnn.layer2.1.weight',
+    'cnn.layer2.1.bias',
+    'cnn.layer2.1.running_mean',
+    'cnn.layer2__1.running_var',
+    'cnn.fc.weight',
+    'cnn.fc.bias',
+]

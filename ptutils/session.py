@@ -39,30 +39,31 @@ class Session(Module):
 """
 
     __name__ = 'sess'
+    _ESSENTIAL_MODULES = [Model, DBInterface, DataProvider]
 
     def __init__(self, *args, **kwargs):
         super(Session, self).__init__(*args, **kwargs)
 
     @property
     def status(self):
-        self._status = self._get_status()
+        self._status = self._determine_status()
         return self._status
 
     @status.setter
     def status(self, status):
-        current_status = self._get_status()
+        current_status = self._determine_status()
         if status != current_status:
             warnings.warn('Status mismatch')
         self._status = current_status
 
     @property
     def config(self):
-        self._config = self._get_config()
+        self._config = self._determine_config()
         return self._config
 
     @config.setter
     def config(self, status):
-        current_config = self._get_config()
+        current_config = self._determine_config()
         if status != current_status:
             print('Config mismatch')
         self._config = current_config
@@ -70,10 +71,10 @@ class Session(Module):
     # CONFIG should be state_dict() without data
     # (i.e. state_dict().keys())
 
-    def _get_config(self):
+    def _determine_config(self):
         pass
 
-    def _get_status(self):
+    def _determine_status(self):
         log.info('Determining session status ...')
         """Compare the config to the db to get status of the session."""
         # CALL _get_status whenever a module or property is added.
@@ -87,46 +88,56 @@ class Session(Module):
         # valid_config = False
 
         # Take module inventory.
-        core = defaultdict(list)
+        DEFAULTS = defaultdict(list)
         inventory = set(self.module_names())
         cls_inventory = set(map(type, self.modules()))
 
         # Partition core session components by class.
         for name, module in self.named_modules():
-            if isinstance(module, Model):
-                core['model'].append(name)
-            if isinstance(module, Session):
-                core['session'].append(name)
-            if isinstance(module, Criterion):
-                core['criterion'].append(name)
-            if isinstance(module, Optimizer):
-                core['optimizer'].append(name)
-            if isinstance(module, Configuration):
-                core['config'].append(name)
-            if isinstance(module, DBInterface):
-                core['db_interface'].append(name)
-            if isinstance(module, DataProvider):
-                core['data_provider'].append(name)
+            for essential in Session._ESSENTIAL_MODULES:
+                if isinstance(module, essential):
+                    if not DEFAULTS[essential_module.__name__]:
+                        DEFAULTS[essential_module.__name__] = name
 
-        # Set first module in list as default.
-        for mod_type, mods_list in core.items():
-            if mods_list:
-                if mod_type == 'session':
-                    if len(mods_list) > 1:
-                        self['_DEFAULT_' + mod_type + '_name'] = mods_list[1]
-                else:
-                    self['_DEFAULT_' + mod_type + '_name'] = mods_list[0]
+        has_essentials = (len(_ESSENTIAL_MODULES) == len(DEFAULTS))
 
-        if not core['config']:
+        # core = defaultdict(list)
+        # # Partition core session components by class.
+        # for name, module in self.named_modules():
+        #     if isinstance(module, Model):
+        #         core['model'].append(name)
+        #     if isinstance(module, Session):
+        #         core['session'].append(name)
+        #     if isinstance(module, Criterion):
+        #         core['criterion'].append(name)
+        #     if isinstance(module, Optimizer):
+        #         core['optimizer'].append(name)
+        #     if isinstance(module, Configuration):
+        #         core['config'].append(name)
+        #     if isinstance(module, DBInterface):
+        #         core['db_interface'].append(name)
+        #     if isinstance(module, DataProvider):
+        #         core['data_provider'].append(name)
+
+        # # Set first module in list as default.
+        # for mod_type, mods_list in core.items():
+        #     if mods_list:
+        #         if mod_type == 'session':
+        #             if len(mods_list) > 1:
+        #                 self['_DEFAULT_' + mod_type + '_name'] = mods_list[1]
+        #         else:
+        #             self['_DEFAULT_' + mod_type + '_name'] = mods_list[0]
+
+        # if not core['config']:
             # self._generate_config()
-            pass
+            # pass
         # valid_config self._c
 
         # valid sess if all components are present and config is compatible
-        valid_sess = True if (core['model'] and
-                              core['config'] and
-                              core['db_interface'] and
-                              core['data_provider']) else False
+        # valid_sess = True if (core['model'] and
+        #                       # core['config'] and
+        #                       core['db_interface'] and
+        #                       core['data_provider']) else False
         # for db in db_interfaces:
         # # TODO: look for previous sessions
         #     candidates = db.load(self.config)

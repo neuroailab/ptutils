@@ -11,6 +11,8 @@ from .base import Module, Property
 class Model(nn.Module, Module):
     """Wrap nn.Module to change the model.state_dict() separator symbol."""
 
+    # Model class will be responsible for parsing state_dicts and loading partial
+    # models, reusing parts of trained networks etc.
     def __init__(self, *args, **kwargs):
         nn.Module.__init__(self)
         Module.__init__(self, *args, **kwargs)
