@@ -1,10 +1,20 @@
 import time
+import logging
+import warnings
+from collections import defaultdict
 
 from torch.autograd import Variable
 
 from .base import *
 from .data import DataProvider
 from .database import DBInterface
+from .model import Model, Criterion, Optimizer
+
+
+logging.basicConfig()
+log = logging.getLogger('ptutils')
+log.setLevel('DEBUG')
+logging.captureWarnings(True)
 
 
 class Session(Module):
@@ -33,6 +43,127 @@ class Session(Module):
     def __init__(self, *args, **kwargs):
         super(Session, self).__init__(*args, **kwargs)
 
+    @property
+    def status(self):
+        self._status = self._get_status()
+        return self._status
+
+    @status.setter
+    def status(self, status):
+        current_status = self._get_status()
+        if status != current_status:
+            warnings.warn('Status mismatch')
+        self._status = current_status
+
+    @property
+    def config(self):
+        self._config = self._get_config()
+        return self._config
+
+    @config.setter
+    def config(self, status):
+        current_config = self._get_config()
+        if status != current_status:
+            print('Config mismatch')
+        self._config = current_config
+
+    # CONFIG should be state_dict() without data
+    # (i.e. state_dict().keys())
+
+    def _get_config(self):
+        pass
+
+    def _get_status(self):
+        log.info('Determining session status ...')
+        """Compare the config to the db to get status of the session."""
+        # CALL _get_status whenever a module or property is added.
+
+        # TODO:
+        # (1) Query database for previous status.
+        # (2) If it doesn't exist, create it.
+        # (3) If it does exist, verify it.
+
+        # valid_sess = False
+        # valid_config = False
+
+        # Take module inventory.
+        core = defaultdict(list)
+        inventory = set(self.module_names())
+        cls_inventory = set(map(type, self.modules()))
+
+        # Partition core session components by class.
+        for name, module in self.named_modules():
+            if isinstance(module, Model):
+                core['model'].append(name)
+            if isinstance(module, Session):
+                core['session'].append(name)
+            if isinstance(module, Criterion):
+                core['criterion'].append(name)
+            if isinstance(module, Optimizer):
+                core['optimizer'].append(name)
+            if isinstance(module, Configuration):
+                core['config'].append(name)
+            if isinstance(module, DBInterface):
+                core['db_interface'].append(name)
+            if isinstance(module, DataProvider):
+                core['data_provider'].append(name)
+
+        # Set first module in list as default.
+        for mod_type, mods_list in core.items():
+            if mods_list:
+                if mod_type == 'session':
+                    if len(mods_list) > 1:
+                        self['_DEFAULT_' + mod_type + '_name'] = mods_list[1]
+                else:
+                    self['_DEFAULT_' + mod_type + '_name'] = mods_list[0]
+
+        if not core['config']:
+            # self._generate_config()
+            pass
+        # valid_config self._c
+
+        # valid sess if all components are present and config is compatible
+        valid_sess = True if (core['model'] and
+                              core['config'] and
+                              core['db_interface'] and
+                              core['data_provider']) else False
+        # for db in db_interfaces:
+        # # TODO: look for previous sessions
+        #     candidates = db.load(self.config)
+        #     for candidate in candidates:
+        #     # TODO: Attempt to load missing components
+        #     # TODO: Attempt to reuse previous experiements
+        #         pass
+        # # TODO: By scanning for previous sessions:
+        # # should determine run number, new/
+
+        if valid_sess:
+            log.info('Current session is valid! ' +
+                     'Session.run() can be called without error!')
+        else:
+            log.warning('Current session is NOT valid. Please review ' +
+                        'the session\'s configuration before continuing')
+
+        status = {'core_modules': core,
+                  'valid_session': valid_sess,
+                  'num_run': 'number of attempted sess.runs',
+                  'run_id': {'init': '[new/resume/restart]',
+                             'start_date': 'start date',
+                             'state': '[pending/in-progress/complete]',
+                             'progress': '% complete',
+                             'eta': 'estimated time to completion',
+                             'errors': '[error1, error2, error3, ...]',
+                             'end_date': 'end date',
+                             'outcome': 'outcome description'}}
+        return status
+
+    def _find_stored_sess(self):
+        pass
+        # self.status = {'inventory': inventory,
+        #                'essentials': essentials}
+
+        # valid = has_model and has_db_interface and has_data_provider
+        # essentials = inventory.intersection({DBInterface, DataProvider, Model})
         """
         TODO: determine the standard procedure for creating a session:
         (1) Iterate over all modules an generate an module inventory by type!
@@ -44,7 +175,7 @@ class Session(Module):
             - check to see that one child module has/is a dbinterface
                 - if no DBInterface, warn that default session execution procedure cannot proceed
                     - computations cannot be saved
-                    - previous session cannot be resumed or restarted 
+                    - previous session cannot be resumed or restarted
             - check to see that one child module has/is a dataprovider
                 - if no data_provider, warn that default run procedure cannot proceed
                     - no data will be provided to the session automatically
@@ -54,15 +185,14 @@ class Session(Module):
                     -
             - check for a mix of sessions and non-sessions
             - check to see if there are module conflicts
-            - 
         (2) Check to see if run method has been overridden
         (3) Use config and db to get status if not specified, else verify.
         (4) Use config and status to load correct model and data
             if not specified, else verify compatability with status.
-        (5) *** REGISTER ALL SUBSESSIONS AND/OR ptutils.Module 
+        (5) *** REGISTER ALL SUBSESSIONS AND/OR ptutils.Module
 
         -----------------------------------------------------------------------
-        OLD: 
+        OLD:
         TODO: determine the standard procedure for creating a session:
         Option 1: parse a config dict that either contains the session
                   objects as elements or specifies params neccessary
@@ -266,71 +396,6 @@ class Session(Module):
     #                 grad_fn.register_hook(wrapper)
     #     return result
 
-    def _get_status(self):
-        """Compare the config to the db to get status of the session."""
-
-        # TODO:
-        # (1) Query database for previous status.
-        # (2) If it doesn't exist, create it.
-        # (3) If it does exist, verify it.
-        pass
-
-    def _load_model(self):
-        """Return a valid torch Module in the desired state. """
-        pass
-
-    def _load_data_provider(self):
-        """Return a DataProvider with the desired dataset and dataloader."""
-        pass
-
-    def _load_db(self):
-        """Return an implemented DBInterface."""
-        pass
-
-
-class Config(object):
-    def __init__(self, config_dict):
-        self.session = None
-        self.model = config['model']
-        self.criterion = config['criterion']
-        self.optimizer = config['optimizer']
-        self.data_provider = config['data_provider']
-        self.db = config['db_interface']
-
-    def get_model(self):
-        pass
-
-    def get_data_provider(self):
-        pass
-
-    def get_db_interface(self):
-        pass
-
-
-"""
-
-Potential config structure:
-
-config.session = {'session_id': session id number,
-                  'description'(optional): description of session,
-                  'status': {'num_run': number of attempted sess.runs,
-                             'run_id': {'init': [new/resume/restart],
-                                        'start_date': start date,
-                                        'state': '[pending/in-progress/complete]',
-                                        'progress': % complete,
-                                        'eta': estimated time to completion,
-                                        'errors': [error1, error2, error3, ...]
-                                        'end_date': end data,
-                                        'outcome': 'outcome description'}}
-                  'history' (optional): {instance_prop1: val, intance_prop2: val, ...}
-                  'subsessions: [subsession1, subsession2, subsession3, ...]}
-config.model = {'model': instance of model class,
-                'name' (optional): model name+description}
-config.criterion = {'criterion': }
-config.optimizer = {'model': instance of model class,
-                'name' (optional): model name+description}
-"""
-
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, db):
     _run_epoch(train_loader, model, criterion, optimizer, epoch, db, mode='train')
@@ -471,3 +536,61 @@ class AverageMeter(Monitor):
 
     def view(self):
         return self.state
+
+# class Config(object):
+#     def __init__(self, config_dict):
+#         self.session = None
+#         self.model = config['model']
+#         self.criterion = config['criterion']
+#         self.optimizer = config['optimizer']
+#         self.data_provider = config['data_provider']
+#         self.db = config['db_interface']
+
+#     def get_model(self):
+#         pass
+
+#     def get_data_provider(self):
+#         pass
+
+#     def get_db_interface(self):
+#         pass
+
+
+"""
+
+Potential config structure:
+
+config.session = {'session_id': session id number,
+                  'description'(optional): description of session,
+                  'status': {'num_run': number of attempted sess.runs,
+                             'run_id': {'init': [new/resume/restart],
+                                        'start_date': start date,
+                                        'state': '[pending/in-progress/complete]',
+                                        'progress': % complete,
+                                        'eta': estimated time to completion,
+                                        'errors': [error1, error2, error3, ...]
+                                        'end_date': end data,
+                                        'outcome': 'outcome description'}}
+                  'history' (optional): {instance_prop1: val, intance_prop2: val, ...}
+                  'subsessions: [subsession1, subsession2, subsession3, ...]}
+config.model = {'model': instance of model class,
+                'name' (optional): model name+description}
+config.criterion = {'criterion': }
+config.optimizer = {'model': instance of model class,
+                'name' (optional): model name+description}
+"""
+
+    # def _get_status(self):
+    #     pass
+
+    # def _load_model(self):
+    #     """Return a valid torch Module in the desired state. """
+    #     pass
+
+    # def _load_data_provider(self):
+    #     """Return a DataProvider with the desired dataset and dataloader."""
+    #     pass
+
+    # def _load_db(self):
+    #     """Return an implemented DBInterface."""
+    #     pass

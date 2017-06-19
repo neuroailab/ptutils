@@ -261,7 +261,7 @@ class DataLoaderIter(object):
             self._shutdown_workers()
 
 
-class DataLoader(Module):
+class DataLoader(object):
     """
     Data loader. Combines a dataset and a sampler, and provides
     single- or multi-process iterators over the dataset.

@@ -100,23 +100,26 @@ class DataReader(Module):
 class MNISTProvider(DataProvider):
     def __init__(self):
         super(MNISTProvider, self).__init__()
+        self.prop = Property('test_property')
         self.modes = ['train', 'test']
         for mode in self.modes:
             self[mode] = MNIST(root='../tests/data/',
-                                       train=(mode == 'train'),
-                                       transform=transforms.ToTensor(),
-                                       download=True)
+                               train=(mode == 'train'),
+                               transform=transforms.ToTensor(),
+                               download=True)
 
-    def get_data_loader(self, mode='train', batch_size=100):
-        return DataLoader(dataset=self.dataset[mode],
+    def provide(self, mode='train', batch_size=100):
+        return DataLoader(dataset=self[mode],
                           batch_size=batch_size,
                           shuffle=(mode == 'train'))
 
-class MNIST(Module, dset):
+
+class MNIST(dsets.MNIST, Dataset):
     def __init__(self, root, train=True, transform=None,
                  target_transform=None, download=False):
         super(MNIST, self).__init__(root, train, transform,
                                     target_transform, download)
+        Dataset.__init__(self)
 
 
 class CIFARProvider(DataProvider):
@@ -134,7 +137,7 @@ class CIFARProvider(DataProvider):
                                                              transform=transforms.ToTensor(),
                                                              download=True)
 
-    def get_data_loader(self, dataset='CIFAR10', mode='train', batch_size=100):
+    def provide(self, dataset='CIFAR10', mode='train', batch_size=100):
             return DataLoader(dataset=self.datasets[dataset][mode],
                               batch_size=batch_size,
                               pin_memory=True,

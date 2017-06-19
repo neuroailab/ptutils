@@ -138,6 +138,26 @@ class Module(object):
         for name, module in self.named_modules():
             yield module
 
+    def module_names(self):
+        """Returns an iterator over all modules in the module.
+
+        Note:
+            Duplicate modules are returned only once. In the following
+            example, ``mod`` will be returned only once.
+
+            >>> mod = Linear(2, 2)
+            >>> net = nn.Sequential(l, l)
+            >>> for idx, m in enumerate(net.modules()):
+            >>>     print(idx, '->', m)
+            0 -> Sequential (
+              (0): Linear (2 -> 2)
+              (1): Linear (2 -> 2)
+            )
+            1 -> Linear (2 -> 2)
+        """
+        for name, module in self.named_modules():
+            yield name
+
     def named_modules(self, memo=None, prefix=''):
         """Returns an iterator over all modules in the module, yielding
         both the name of the module as well as the module itself.
@@ -172,6 +192,11 @@ class Module(object):
         for name, module in self.named_children():
             yield module
 
+    def children_names(self):
+        """Returns an iterator over immediate children modules."""
+        for name, module in self.named_children():
+            yield name
+
     def named_children(self):
         """Returns an iterator over immediate children modules, yielding both
         the name of the module as well as the module itself.
@@ -201,7 +226,7 @@ class Module(object):
             destination = OrderedDict()
         for name, prop in self._properties.items():
             if prop is not None:
-                # destination[prefix + name] = prop.data
+                destination[prefix + name] = prop.data
                 destination[prefix + name] = prop
         for name, module in self._modules.items():
             if module is not None:

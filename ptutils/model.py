@@ -3,15 +3,17 @@ from collections import OrderedDict
 
 import torch
 import torch.nn as nn
+import torch.optim as optim
 
-from base import Module
+from .base import Module, Property
 
 
 class Model(nn.Module, Module):
     """Wrap nn.Module to change the model.state_dict() separator symbol."""
 
-    def __init__(self):
-        super(Model, self).__init__()
+    def __init__(self, *args, **kwargs):
+        nn.Module.__init__(self)
+        Module.__init__(self, *args, **kwargs)
 
     def state_dict(self, destination=None, prefix=''):
             """Returns a dictionary containing a whole state of the module.
@@ -38,8 +40,23 @@ class Model(nn.Module, Module):
             return destination
 
 
-class CNN(Model):
+class Criterion(Module):
     def __init__(self):
+        super(Module, self).__init__()
+
+    def __repr__(self):
+        return 'Criterion'
+
+
+class Optimizer(optim.Optimizer, Module):
+    def __init__(self):
+        super(Optimizer, self).__init__()
+
+    def __repr__(self):
+        return 'Optimizer'
+
+class CNN(Model):
+    def __init__(self,):
         super(CNN, self).__init__()
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
@@ -52,6 +69,8 @@ class CNN(Model):
             nn.ReLU(),
             nn.MaxPool2d(2))
         self.fc = nn.Linear(7 * 7 * 32, 10)
+
+        self.learning_rate = Property(0.001)
 
     def forward(self, x):
         out = self.layer1(x)
