@@ -357,6 +357,17 @@ class Module(object):
 class Configuration(Module):
     """Configure a module or group of modules from a Configuration state.
 
+    A Configuration module is a dictionary that specifies the configuration of
+    its parent module. The property names are the dictionary keys and the
+    properties are the dict values. If a key is a Mdoule class, then the
+    corresponding value is the configuration of an instance of that module.
+
+    Structure:
+    config = {
+    'property_name': 'property_value',
+    'ptutils.Module.ClassName': sub_module_config,
+    }
+
     # CONFIG.stat_dict() return its parent module's
     state_dict() without data (i.e. parameters)
     """
@@ -365,6 +376,17 @@ class Configuration(Module):
         super(Module, self).__init__()
 
     def configure(self):
+        pass
+
+    def state_dict(self, destination=None, prefix=''):
+        if destination is None:
+            destination = OrderedDict()
+        for name, prop in self.named_properties.items():
+            if issubclass(name, Module):
+                pass
+        pass
+
+    def load_state_dict():
         pass
 
 

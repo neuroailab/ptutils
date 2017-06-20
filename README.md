@@ -39,6 +39,7 @@ Although users are free to subclass the `Module` class in any way they please, p
 
 * `Module.call()`: Base class for all modules that raises a NotImplemented exception when called.
 * `Session.run()`: Carry out a neural network experiement.
+* `Status.check()`: Verify the status of a Module.
 * `Model.forward()`: Execute the forward pass of a neural network model.
 * `DataReader.read()`: Load data of a particular format.
 * `DBInterface.access()`: Interact (read, write and query) with a database. 
@@ -52,6 +53,7 @@ PTUtils will have one very special module: the `State` module. An instance `s` o
 ```python
     s = s(*args, **kwargs) = s.state_dict(*args, **kwargs) = s.load_state_dict(*args, **kwargs).
 ```
+
 Calling a state object or its two state_dict with any arguments will always return the original state object unmodified. Under the hood, the `State` class is an enhanced python dictionary with support for 'dot' notation and instrospective features such as recognizing any modules it contains.
 
 With the exception of the `Module` base class, all PTUtils modules will come pre-fitted with default behavior that is '*compatible*' with the operation of the other modules. In other words, one can carry out a standard neural network experiment without writing any lines of code, provided that the modules are configured properly, of course. On the other hand, users can (and are encouraged) override any and/or all of the core module methods (within the boundaries of the API) and expect the other modules to remain functional. This flexibility is particularly useful for writing custom training loops while maintaining the same logging/saving behavior.
