@@ -11,12 +11,20 @@ from .utils import Map
 DEFAULT_REQUIRES_SAVE = True
 DEFAULT_SAVE_FREQ = 100
 
+"""
+TODO: REMOVE Property class!
+If a module attr is not another module,
+then it is a property! The property name is the attribute name
+and the data is the attr value.
+"""
+
 
 class Module(object):
 
     __name__ = 'module'
 
     def __init__(self, *args, **kwargs):
+        # TODO: UPDATE THIS TO REFLECT CHANGES TO PROPERTIES
         self.name = None
         self._modules = OrderedDict()
         self._properties = OrderedDict()
@@ -42,6 +50,7 @@ class Module(object):
                 setattr(self, key, value)
 
     def _set_named_arg(self, arg, i, j=None):
+        # TODO: ELMINATE THIS!
         if arg.name is not None:
             setattr(self, arg.name, arg)
         else:
@@ -222,6 +231,11 @@ class Module(object):
             >>> module.state_dict().keys()
             ['config', 'model', 'db_interface', 'data_provider']
         """
+
+        # TODO: STATE_DICT KEYS SHOULD CONTAIN STANDARDIZED
+        # CLASS NAMES! NOT ATTRIBUTE NAMES...OTHERWISE, 
+        # MODULE EQUIVALENCY MAY BE DISRUPTED DUE TO ATTR NAMES
+
         if destination is None:
             destination = OrderedDict()
         for name, prop in self._properties.items():
@@ -238,6 +252,8 @@ class Module(object):
         this module and its descendants. The keys of :attr:`state_dict` must
         exactly match the keys returned by this module's :func:`state_dict()`
         function.
+
+        TODO: BE MORE FLEXIBLE!
 
         Args:
             state_dict (dict): A dict containing modules.
@@ -338,6 +354,32 @@ class Module(object):
         return self.__setattr__(name, value)
 
 
+class Configuration(Module):
+    """Configure a module or group of modules from a Configuration state.
+
+    # CONFIG.stat_dict() return its parent module's
+    state_dict() without data (i.e. parameters)
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Module, self).__init__()
+
+    def configure(self):
+        pass
+
+
+class Status(Module):
+    """Verify a Module's status, compatibility and progress.
+
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(Module, self).__init__()
+
+    def verify(self):
+        pass
+
+
 class Property(object):
     """A kind of Property that is to be considered a module property.
 
@@ -374,33 +416,6 @@ class Property(object):
                '{}\n'.format(self.data.__repr__()) +
                'Requires save: {}\n'.format(self.requires_save) +
                'Save Frequency: {}\n'.format(self.save_freq))
-
-
-class Configuration(Property):
-    """A Configuration is a subclass with special behavior.
-
-    When a configuration is passed to a Module's __init__() method,
-    the properties (dict values) are assigned as regular attributes to
-    the module using the corresponding dictionary key as its name:
-
-    Module.key = Configuration[key]
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(Property, self).__init__()
-
-class Status(Property):
-    """A Configuration is a Property subclass with special behavior.
-
-    When a configuration is passed to a Module's __init__() method,
-    the properties (dict values) are assigned as regular attributes to
-    the module using the corresponding dictionary key as its name:
-
-    Module.key = Configuration[key]
-    """
-
-    def __init__(self, *args, **kwargs):
-        super(Property, self).__init__()
 
 
 class Parameter(Property, Variable):

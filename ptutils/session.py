@@ -1,3 +1,4 @@
+import copy
 import time
 import logging
 import warnings
@@ -39,7 +40,11 @@ class Session(Module):
 """
 
     __name__ = 'sess'
-    _ESSENTIAL_MODULES = [Model, DBInterface, DataProvider]
+    _CORE_MODULES = {
+        Model.__name__: Model,
+        DBInterface.__name__: DBInterface,
+        DataProvider.__name__: DataProvider,
+    }
 
     def __init__(self, *args, **kwargs):
         super(Session, self).__init__(*args, **kwargs)
@@ -68,9 +73,6 @@ class Session(Module):
             print('Config mismatch')
         self._config = current_config
 
-    # CONFIG should be state_dict() without data
-    # (i.e. state_dict().keys())
-
     def _determine_config(self):
         pass
 
@@ -89,17 +91,19 @@ class Session(Module):
 
         # Take module inventory.
         DEFAULTS = defaultdict(list)
+        missing_mods = self._CORE_MODULES
         inventory = set(self.module_names())
         cls_inventory = set(map(type, self.modules()))
 
         # Partition core session components by class.
         for name, module in self.named_modules():
-            for essential in Session._ESSENTIAL_MODULES:
-                if isinstance(module, essential):
-                    if not DEFAULTS[essential_module.__name__]:
-                        DEFAULTS[essential_module.__name__] = name
-
-        has_essentials = (len(_ESSENTIAL_MODULES) == len(DEFAULTS))
+            for core_name, core_module in self._CORE_MODULES:
+                if isinstance(module, core_module):
+                    if not DEFAULTS[core_module.__name__]:
+                        DEFAULTS[core_module.__name__] = name
+# has_essentials = (len(_ESSENTIAL_MODULES) == len(DEFAULTS))
+        # missing_mods = (
+        #     set(DEFAULTS.keys()).difference(map(type, self._CORE_MODULES)))
 
         # core = defaultdict(list)
         # # Partition core session components by class.
@@ -134,6 +138,8 @@ class Session(Module):
         # valid_config self._c
 
         # valid sess if all components are present and config is compatible
+        valid_sess = True if (not missing_mods and
+                       True) else False
         # valid_sess = True if (core['model'] and
         #                       # core['config'] and
         #                       core['db_interface'] and
@@ -155,8 +161,9 @@ class Session(Module):
             log.warning('Current session is NOT valid. Please review ' +
                         'the session\'s configuration before continuing')
 
-        status = {'core_modules': core,
+        status = {'default': DEFAULTS,
                   'valid_session': valid_sess,
+                  'missing': missing_mods,
                   'num_run': 'number of attempted sess.runs',
                   'run_id': {'init': '[new/resume/restart]',
                              'start_date': 'start date',

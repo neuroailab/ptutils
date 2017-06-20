@@ -13,33 +13,10 @@ class Model(nn.Module, Module):
 
     # Model class will be responsible for parsing state_dicts and loading partial
     # models, reusing parts of trained networks etc.
+
     def __init__(self, *args, **kwargs):
         nn.Module.__init__(self)
         Module.__init__(self, *args, **kwargs)
-
-    def state_dict(self, destination=None, prefix=''):
-            """Returns a dictionary containing a whole state of the module.
-
-            Both parameters and persistent buffers (e.g. running averages) are
-            included. Keys are corresponding parameter and buffer names.
-
-            Example:
-                >>> module.state_dict().keys()
-                ['bias', 'weight']
-            """
-            if destination is None:
-                destination = OrderedDict()
-            for name, param in self._parameters.items():
-                if param is not None:
-                    destination[prefix + name] = param.data
-            for name, buf in self._buffers.items():
-                if buf is not None:
-                    destination[prefix + name] = buf
-            for name, module in self._modules.items():
-                if module is not None:
-                    # Change sep from '.' to '__' for compatability with MongoDB.
-                    module.state_dict(destination, prefix + name + '__')
-            return destination
 
 
 class Criterion(Module):
@@ -56,6 +33,7 @@ class Optimizer(optim.Optimizer, Module):
 
     def __repr__(self):
         return 'Optimizer'
+
 
 class CNN(Model):
     def __init__(self,):
