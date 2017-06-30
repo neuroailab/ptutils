@@ -4,6 +4,7 @@ import logging
 import warnings
 from collections import defaultdict
 
+import torch
 from torch.autograd import Variable
 
 from .base import *
@@ -49,8 +50,16 @@ class Session(Module):
     def __init__(self, *args, **kwargs):
         super(Session, self).__init__(*args, **kwargs)
 
-        self._DEFAULT= defaultdict(list)
+        self._DEFAULT = defaultdict(list)
         self._MISSING = copy.deepcopy(self._CORE_MODULES)
+
+        for arg in args:
+            if isinstance(arg, Configuration):
+                log.info('Configuration detected ...')
+                log.info('Configuration verified ...')
+                log.info('Configuring {}'.format(self.__class__.__name__))
+                for key, value in self.Configuration.configure().items():
+                    self[key] = value
 
     @property
     def status(self):
@@ -66,15 +75,25 @@ class Session(Module):
 
     @property
     def config(self):
-        self._config = self._determine_config()
+        print('Getting config')
+        # self._config = self._determine_config()
         return self._config
 
     @config.setter
-    def config(self, status):
+    def config(self, config):
         current_config = self._determine_config()
-        if status != current_status:
+        if config != current_status:
             print('Config mismatch')
-        self._config = current_config
+        self._config = config
+
+    def __setattr__(self, name, value):
+        Module.__setattr__(self, name, value)
+
+        if isinstance(value, Configuration):
+            print('Configuration is being assigned!')
+            Module.__setattr__(self, 'config', value)
+            for modname, mod in value.configure().items():
+                Module.__setattr__(self, modname, mod)
 
     def _determine_config(self):
         pass
@@ -225,9 +244,13 @@ class Session(Module):
         # TODO: If run() is not overridden, run default from config.
         # TODO: Log and save progress
 
-        self.dataset = 'CIFAR10'
+        self.model = self._DEFAULT['Model']
+        self.db_interface = self._DEFAULT['DBInterface']
+        self.data_provider = self._DEFAULT['DataProvider']
+        # self.dataset = 'CIFAR10'
         # self.model = torch.nn.DataParallel(self.model).cuda()
-        for epoch in range(self.config['run']['num_epochs']):
+        # for epoch in range(self.config['run']['num_epochs']):
+        for epoch in range(10):
 
             # train for one epoch
             self.epoch = epoch
@@ -236,15 +259,15 @@ class Session(Module):
             # evaluate on validation set
             prec1 = self._run(mode='test')
 
-            self.db.save({
+            self.db_interface.save({
                 'epoch': epoch + 1,
                 'state_dict': self.model.state_dict(),
                 'prec1': prec1})
             # 'optimizer': self.optimizer.state_dict()})
-            if prec1 > 60:
-                print('-' * 80)
-                self.model.re_init_fc(num_classes=100)
-                self.dataset = 'CIFAR100'
+            # if prec1 > 60:
+                # print('-' * 80)
+                # self.model.re_init_fc(num_classes=100)
+                # self.dataset = 'CIFAR100'
 
     def _run(self, mode='train'):
 
@@ -256,8 +279,13 @@ class Session(Module):
 
         # Move model and criterion to GPU
         # self.model = torch.nn.DataParallel(self.model).cuda()
-        self.model.cuda()
-        self.criterion.cuda()
+
+        use_cuda = torch.cuda.is_available()
+        dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+
+        if use_cuda:
+            self.model.cuda()
+            self.criterion.cuda()
 
         # Select mode
         if mode == 'train':
@@ -267,7 +295,8 @@ class Session(Module):
             self.model.eval()
             volatile = True
 
-        data_loader = self.data_provider.get_data_loader(dataset=self.dataset, mode=mode)
+        # data_loader = self.data_provider.get_data_loader(dataset=self.dataset, mode=mode)
+        data_loader = self.data_provider.provide(mode=mode)
 
         start = time.time()
         for step, (input, target) in enumerate(data_loader):
@@ -275,9 +304,16 @@ class Session(Module):
             # Measure data loading time
             data_time.update(time.time() - start)
 
-            target = target.cuda(async=True)
-            input_var = Variable(input, volatile=volatile).cuda()
-            target_var = Variable(target, volatile=volatile).cuda()
+            input_var = Variable(input, volatile=volatile)
+            target_var = Variable(target, volatile=volatile)
+
+            # target = target.cuda(async=True)
+            # input_var = Variable(input, volatile=volatile).cuda()
+            # target_var = Variable(target, volatile=volatile).cuda()
+
+            # target = target.type(dtype, async=True)
+            # input_var = Variable(input.type(dtype), volatile=volatile)
+            # target_var = Variable(target.type(torch.LongTensor), volatile=volatile)
 
             # Compute output and loss
             output = self.model(input_var)

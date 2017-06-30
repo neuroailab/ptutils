@@ -1,9 +1,12 @@
 """"
     Module containing base ptutils objects.
 """
+import copy
+import pprint
 import warnings
 from collections import OrderedDict, MutableMapping
 
+import torch.nn as nn
 from  torch.autograd import Variable
 
 from .utils import Map
@@ -24,17 +27,16 @@ class Module(object):
     __name__ = 'module'
 
     def __init__(self, *args, **kwargs):
-        # TODO: UPDATE THIS TO REFLECT CHANGES TO PROPERTIES
+        self._properties = OrderedDict()
         self.name = None
         self._modules = OrderedDict()
-        self._properties = OrderedDict()
         if self.name is not None:
             self.__name__ = self.name
 
         for i, arg in enumerate(args):
 
-            if isinstance(arg, Property) or isinstance(arg, Module):
-                self._set_named_arg(arg, i)
+            if isinstance(arg, Module):
+                self._add_nameless_module(arg)
 
             if isinstance(arg, dict):
                 for key, value in arg.items():
@@ -49,19 +51,19 @@ class Module(object):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-    def _set_named_arg(self, arg, i, j=None):
-        # TODO: ELMINATE THIS!
-        if arg.name is not None:
-            setattr(self, arg.name, arg)
-        else:
-            cls_name = arg.__class__.__name__
-            if j is not None:
-                default_name = '{}_{}_{}'.format(cls_name, i, j)
-            else:
-                default_name = '{}_{}'.format(cls_name.lower(), i)
-            warnings.warn('{} does not have a name. Defaulting to: {}'.
-                          format(cls_name, default_name))
-            setattr(self, '{}_{}'.format(default_name, i), arg)
+    # def _set_named_arg(self, arg, i, j=None):
+    #     # TODO: ELMINATE THIS!
+    #     if arg.name is not None:
+    #         setattr(self, arg.name, arg)
+    #     else:
+    #         cls_name = arg.__class__.__name__
+    #         if j is not None:
+    #             default_name = '{}_{}_{}'.format(cls_name, i, j)
+    #         else:
+    #             default_name = '{}_{}'.format(cls_name.lower(), i)
+    #         warnings.warn('{} does not have a name. Defaulting to: {}'.
+    #                       format(cls_name, default_name))
+    #         setattr(self, '{}_{}'.format(default_name, i), arg)
 
     def register_property(self, name, prop):
         """Adds a property to the module.
@@ -72,18 +74,18 @@ class Module(object):
             raise AttributeError(
                 "cannot assign property before Module.__init__() call")
         if prop is None:
-            self._property[name] = None
-        elif not isinstance(prop, Property):
-            raise TypeError("cannot assign '{}' object to property '{}' "
-                            "(ptutils.Property or None required)"
-                            .format(type(prop), name))
+            self._properties[name] = None
+        # elif not isinstance(prop, Property):
+        #     raise TypeError("cannot assign '{}' object to property '{}' "
+        #                     "(ptutils.Property or None required)"
+        #                     .format(type(prop), name))
         else:
-            if prop.name is None:
-                prop.name = name
-            elif prop.name is not None and prop.name != name:
-                warnings.warn('Property name ({}) '.format(prop.name) +
-                              'does not match attr name ({}). '.format(name) +
-                              'Proceed with caution ...')
+            # if prop.name is None:
+            #     prop.name = name
+            # elif prop.name is not None and prop.name != name:
+            #     warnings.warn('Property name ({}) '.format(prop.name) +
+            #                   'does not match attr name ({}). '.format(name) +
+            #                   'Proceed with caution ...')
             self._properties[name] = prop
 
     def properties(self):
@@ -113,8 +115,12 @@ class Module(object):
                 yield prefix + ('.' if prefix else '') + name, p
         for mname, module in self.named_children():
             submodule_prefix = prefix + ('.' if prefix else '') + mname
-            for name, p in module.named_properties(memo, submodule_prefix):
-                yield name, p
+            if not isinstance(module, Module) and isinstance(module, nn.Module):
+                for name, p in module.named_parameters(memo, submodule_prefix):
+                    yield name, p
+            else:
+                for name, p in module.named_properties(memo, submodule_prefix):
+                    yield name, p
 
     def add_module(self, name, module):
         """Adds a child module to the current module.
@@ -126,6 +132,16 @@ class Module(object):
         if not isinstance(module, Module) and module is not None:
             raise TypeError("{} is not a Module subclass".format(type(module)))
         self._modules[name] = module
+
+    def _add_nameless_module(self, module):
+        """Adds an unamed child module to the module using its class name.
+
+        The module can be accessed as an attribute using the its class name.
+        """
+        cls_name = module.__class__.__name__
+        warnings.warn('A nameless module was provided. ' +
+                      ' Defaulting to its class name {}'.format(cls_name))
+        self.add_module(cls_name, module)
 
     def modules(self):
         """Returns an iterator over all modules in the module.
@@ -233,14 +249,13 @@ class Module(object):
         """
 
         # TODO: STATE_DICT KEYS SHOULD CONTAIN STANDARDIZED
-        # CLASS NAMES! NOT ATTRIBUTE NAMES...OTHERWISE, 
+        # CLASS NAMES! NOT ATTRIBUTE NAMES...OTHERWISE,
         # MODULE EQUIVALENCY MAY BE DISRUPTED DUE TO ATTR NAMES
 
         if destination is None:
             destination = OrderedDict()
         for name, prop in self._properties.items():
             if prop is not None:
-                destination[prefix + name] = prop.data
                 destination[prefix + name] = prop
         for name, module in self._modules.items():
             if module is not None:
@@ -293,20 +308,6 @@ class Module(object):
                 if name in d:
                     del d[name]
 
-        props = self.__dict__.get('_properties')
-        if isinstance(value, Property):
-            if props is None:
-                raise AttributeError(
-                    "cannot assign property before Module.__init__() call")
-            remove_from(self.__dict__, self._modules)
-            self.register_property(name, value)
-        elif props is not None and name in props:
-            if value is not None:
-                raise TypeError("cannot assign '{}' as property '{}' "
-                                "(ptutils.Property or None expected)"
-                                .format(type(value), name))
-            self.register_property(name, value)
-
         modules = self.__dict__.get('_modules')
         if isinstance(value, Module):
             if modules is None:
@@ -319,8 +320,11 @@ class Module(object):
                                 "(ptutils.Module or None expected)"
                                 .format(type(value), name))
             modules[name] = value
+
         else:
             object.__setattr__(self, name, value)
+            if not name.startswith('_'):
+                self.register_property(name, value)
 
     def __delattr__(self, name):
         if name in self._properties:
@@ -335,7 +339,7 @@ class Module(object):
         for key, module in self._modules.items():
             modstr = module.__repr__()
             modstr = _addindent(modstr, 2)
-            tmpstr = tmpstr + '  (' + key + '): ' + modstr + '\n'
+            tmpstr = tmpstr + '  (' + str(key) + '): ' + modstr + '\n'
         tmpstr = tmpstr + ')'
         return tmpstr
 
@@ -351,43 +355,165 @@ class Module(object):
         return self.__getattr__(key)
 
     def __setitem__(self, name, value):
-        return self.__setattr__(name, value)
+        self.__setattr__(name, value)
 
 
-class Configuration(Module):
-    """Configure a module or group of modules from a Configuration state.
+class State(dict, Module):
 
-    A Configuration module is a dictionary that specifies the configuration of
-    its parent module. The property names are the dictionary keys and the
-    properties are the dict values. If a key is a Mdoule class, then the
-    corresponding value is the configuration of an instance of that module.
-
-    Structure:
-    config = {
-    'property_name': 'property_value',
-    'ptutils.Module.ClassName': sub_module_config,
-    }
-
-    # CONFIG.stat_dict() return its parent module's
-    state_dict() without data (i.e. parameters)
-    """
+    __name__ = 'state'
 
     def __init__(self, *args, **kwargs):
-        super(Module, self).__init__()
+        super(State, self).__init__(*args, **kwargs)
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = v
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = v
+
+    def state(self, *args, **kwargs):
+        return self
+
+    def load_state(self, *args, **kwargs):
+        return self
+
+    def __call__(self, *args, **kwargs):
+        return self
+
+    def __getattr__(self, attr):
+        return self.__getitem__(attr)
+
+    def __setattr__(self, name, value):
+        self.__setitem__(name, value)
+
+    def __delattr__(self):
+        return dict.__delitem__(self)
+
+    def __getitem__(self, name):
+        return dict.__getitem__(self, name)
+
+    def __setitem__(self, name, value):
+        if isinstance(value, dict):
+            dict.__setitem__(self, name, State(value))
+        else:
+            dict.__setitem__(self, name, value)
+
+    def __dir__(self):
+        return self.keys() + dir(dict(self))
+
+    def __deepcopy__(self, memo):
+        return State(copy.deepcopy(dict(self)))
+
+
+class Configuration(State):
+    __name__ = 'config'
+
+    def __init__(self, config_dict):
+        super(Configuration, self).__init__()
+        Module.__init__(self)
+        self._configs = OrderedDict()
+        self._config_dict = config_dict
+        self._hash = None
+        for key, value in config_dict.items():
+            if isinstance(key, type):
+                if isinstance(value, dict):
+                    self._configs[key.__name__] = (key, Configuration(value))
+
+            elif isinstance(value, dict):
+                key, value = self._find_configs(value)
+                if isinstance(value, dict):
+                    self._configs[key.__name__] = (key, Configuration(value))
+            else:
+                self[key] = value
+
+        self.configure()
 
     def configure(self):
-        pass
+        for name, (cls_, config) in self._configs.items():
+            config.configure()
+            self[name] = cls_(**config)
+        return self
 
-    def state_dict(self, destination=None, prefix=''):
-        if destination is None:
-            destination = OrderedDict()
-        for name, prop in self.named_properties.items():
-            if issubclass(name, Module):
-                pass
-        pass
+    # def state(self):
+        # return self._config_dict
 
-    def load_state_dict():
-        pass
+    def _find_configs(self, dict_):
+        for key, value in dict_.items():
+            if isinstance(key, type):
+                return key, value
+            if isinstance(value, dict):
+                key, value = self._find_configs(value)
+        return key, value
+
+    def __call__(self):
+        self.configure()
+
+    def __setattr__(self, name, value):
+            object.__setattr__(self, name, value)
+
+    def __repr__(self):
+        return pprint.pformat(self._config_dict)
+
+    def __hash__(self):
+        if self._hash is None:
+            h = 0
+            for key, value in self.items():
+                h ^= hash((key, value))
+            self._hash = h
+        return self._hash
+
+
+# class Configuration(dict, Module):
+
+    __name__ = 'config'
+
+    def __init__(self, config_dict):
+        super(Configuration, self).__init__()
+        Module.__init__(self)
+        self._configs = OrderedDict()
+        self._properties = OrderedDict()
+        self._config_dict = config_dict
+        self._hash = None
+        for key, value in config_dict.items():
+            if isinstance(key, type):
+                if isinstance(value, dict):
+                    self._configs[key.__name__] = (key, Configuration(value))
+
+            elif isinstance(value, dict):
+                key, value = self._find_configs(value)
+                if isinstance(value, dict):
+                    self._configs[key.__name__] = (key, Configuration(value))
+            else:
+                self[key] = value
+
+    def configure(self):
+        for name, (cls_, config) in self._configs.items():
+            config.configure()
+            self[name] = cls_(**config)
+        return self
+
+    def state(self):
+        return self._config_dict
+
+    def _find_configs(self, dict_):
+        for key, value in dict_.items():
+            if isinstance(key, type):
+                return key, value
+            if isinstance(value, dict):
+                key, value = self._find_configs(value)
+        return key, value
+
+    def __repr__(self):
+        return pprint.pformat(self._config_dict)
+
+    def __hash__(self):
+        if self._hash is None:
+            h = 0
+            for key, value in self.items():
+                h ^= hash((key, value))
+            self._hash = h
+        return self._hash
 
 
 class Status(Module):
@@ -636,6 +762,7 @@ class PropertyDict(Map):
             for k, v in kwargs.items():
                 self[k] = Property(v, name=k)
 
+
 class PropertyList(Module):
     """Holds Properties in a list.
 
@@ -717,3 +844,101 @@ def _addindent(s_, numSpaces):
     s = '\n'.join(s)
     s = first + '\n' + s
     return s
+
+
+# class Config(dict):
+
+#     __name__ = 'config'
+
+#     def __init__(self, config_dict):
+#         super(Config, self).__init__()
+#         self._configs = OrderedDict()
+#         self._properties = OrderedDict()
+
+#         for key, value in config_dict.items():
+#             if isinstance(key, type):
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Config(value))
+
+#             elif isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#                 self._configs[key.__name__] = (key, Config(value))
+
+#             else:
+#                 self[key] = value
+
+#     def configure(self):
+#         for name, (cls_, config) in self._configs.items():
+#             config.configure()
+#             self[name] = cls_(**config)
+#         return self
+
+#     def _find_configs(self, dict_):
+#         for key, value in dict_.items():
+#             if isinstance(key, type):
+#                 return key, value
+#             if isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#         return key, value
+
+
+# class Config(dict):
+
+#     __name__ = 'config'
+#     def __init__(self, config_dict):
+#         super(Config, self).__init__()
+#         self._configs = OrderedDict()
+#         self._properties = OrderedDict()
+#         for key, value in config_dict.items():
+#             if isinstance(key, type):
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Config(value))
+#                     # print(value)
+#                 else:
+#                     pass
+#                     # print(key)
+
+#             else:
+#                 self[key] = value
+
+#     def configure(self):
+#         for name, (cls_, config) in self._configs.items():
+#             config.configure()
+#             self[name] = cls_(**config)
+#         return self
+
+
+# class Configuration(Module):
+#     """Configure a module or group of modules from a Configuration state.
+
+#     A Configuration module is a dictionary that specifies the configuration of
+#     its parent module. The property names are the dictionary keys and the
+#     properties are the dict values. If a key is a Mdoule class, then the
+#     corresponding value is the configuration of an instance of that module.
+
+#     Structure:
+#     config = {
+#     'property_name': 'property_value',
+#     'ptutils.Module.ClassName': sub_module_config,
+#     }
+
+#     # CONFIG.stat_dict() return its parent module's
+#     state_dict() without data (i.e. parameters)
+#     """
+
+#     def __init__(self, *args, **kwargs):
+#         super(Module, self).__init__()
+
+#     def configure(self):
+#         pass
+
+#     def state_dict(self, destination=None, prefix=''):
+#         if destination is None:
+#             destination = OrderedDict()
+#         for name, prop in self.named_properties.items():
+#             if issubclass(name, Module):
+#                 pass
+#         pass
+
+#     def load_state_dict():
+#         pass

@@ -41,6 +41,9 @@ class DataProvider(Module):
         """Return a `torch.utils.data.dataloader` given an arbitrary data request."""
         raise NotImplementedError()
 
+    def __call__(self):
+        return self.provide()
+
 
 class Dataset(Module, dset):
     """Interface for all Dataset subclasses.
@@ -78,7 +81,7 @@ class DataReader(Module):
         (Can use is just to read single data file, if desired.)
     """
     def __init__(self):
-        pass
+        super(DataReader, self).__init__()
 
     def read(self, *data_source):
         """Loads data from `data_source` into a dictionary of array-like objects.
@@ -100,8 +103,7 @@ class DataReader(Module):
 class MNISTProvider(DataProvider):
     def __init__(self):
         super(MNISTProvider, self).__init__()
-        self.prop = Property('test_property')
-        self.modes = ['train', 'test']
+        self.modes = ('train', 'test')
         for mode in self.modes:
             self[mode] = MNIST(root='../tests/data/',
                                train=(mode == 'train'),
@@ -117,15 +119,15 @@ class MNISTProvider(DataProvider):
 class MNIST(dsets.MNIST, Dataset):
     def __init__(self, root, train=True, transform=None,
                  target_transform=None, download=False):
+        Dataset.__init__(self)
         super(MNIST, self).__init__(root, train, transform,
                                     target_transform, download)
-        Dataset.__init__(self)
 
 
 class CIFARProvider(DataProvider):
     def __init__(self):
         super(CIFARProvider, self).__init__()
-        self.modes = ['train', 'test']
+        self.modes = ('train', 'test')
         self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
         for mode in self.modes:
             self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/data/',
@@ -150,7 +152,7 @@ class ImageNetProvider(DataProvider):
         super(ImageNetProvider, self).__init__()
         self.ImageNet = ImageNet
 
-    def get_data_loader(self, mode='train'):
+    def provide(self, mode='train'):
 
         self.ImageNet.mode = mode
         data_loader = DataLoader(dataset=self.ImageNet,
@@ -164,17 +166,30 @@ class ImageNetProvider(DataProvider):
 class ImageNet(Dataset):
     """ImageNet Dataset class."""
 
-    def __init__(self, data_source, data_reader, transform=None):
-        self.data_source = data_source
-        self.data_reader = data_reader
-        self.transform = transform
+    _DEFAULTS = {
+        'data_source': 'DEFAULT_PATH',
+        # 'data_reader': HDF5DataReader,
+        'transform': None,
+    }
+
+    def __init__(self, *args, **kwargs):
+        super(ImageNet, self).__init__(*args, **kwargs)
+
+        for key, value in ImageNet._DEFAULTS.items():
+            if not hasattr(self, key):
+                self[key] = value
+
+    # def __init__(self, data_source, data_reader, transform=None):
+    #     self.data_source = data_source
+    #     self.data_reader = data_reader
+    #     self.transform = transform
 
         # TODO: Error checking
-        self.data_dict = self.data_reader(self.data_source)
-        self.val = self.data_dict['val']
-        self.train = self.data_dict['train']
-        self.train_val = self.data_dict['train_val']
-        self.mode = self.data_dict.keys()[0]
+        # self.data_dict = self.data_reader(self.data_source)
+        # self.val = self.data_dict['val']
+        # self.train = self.data_dict['train']
+        # self.train_val = self.data_dict['train_val']
+        # self.mode = self.data_dict.keys()[0]
 
     def __getitem__(self, index):
         """Must return an (image, label) tuple given an index."""
@@ -195,6 +210,7 @@ class HDF5DataReader(DataReader):
     """Return an HDF5 file object given a path to an HDF5 file."""
 
     def __init__(self):
+        super(HDF5DataReader, self).__init__()
         self.data_dict = None
 
     def read(self, hdf5_file_path):

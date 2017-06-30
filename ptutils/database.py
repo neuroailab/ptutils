@@ -10,7 +10,7 @@ from bson.objectid import ObjectId
 
 import torch
 
-from base import Module, Property
+from base import Module
 
 
 class DBInterface(Module):
@@ -49,16 +49,34 @@ class DBInterface(Module):
 class MongoInterface(DBInterface):
     """Simple and lightweight mongodb interface for saving experimental data files."""
 
-    def __init__(self, db_name=None, collection_name=None, hostname='localhost', port=27017):
-        super(MongoInterface, self).__init__(db_name, collection_name, hostname, port)
-        # self.db_name = db_name
+    _DEFAULTS = {
+        'port': 27017,
+        'hostname': 'localhost',
+        'db_name': 'DEFAULT_DATABASE',
+        'collection_name': 'DEFAULT_COLLECTION',
+    }
+
+    # NOTE call via MongoInterface(**config)
+    def __init__(self, db_name, collection_name, hostname='localhost', port=27017):
+        super(MongoInterface, self).__init__(db_name=db_name,
+                                             collection_name=collection_name,
+                                             hostname=hostname,
+                                             port=port)
         self.db_name = db_name
         self.collection_name = collection_name
         self.hostname = hostname
         self.port = port
-        self.client = pm.MongoClient(hostname, port)
-        self.db = self.client[self.db_name.data]
-        self.collection = self.db[collection_name]
+
+    # def __init__(self, *args, **kwargs):
+    #     super(MongoInterface, self).__init__(*args, **kwargs)
+
+        # for key, value in MongoInterface._DEFAULTS.items():
+        #     if not hasattr(self, key):
+        #         self[key] = value
+
+        self.client = pm.MongoClient(self.hostname, self.port)
+        self.db = self.client[self.db_name]
+        self.collection = self.db[self.collection_name]
         self.fs = gridfs.GridFS(self.db)
 
     def _close(self):

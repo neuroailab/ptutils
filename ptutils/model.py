@@ -20,19 +20,25 @@ class Model(nn.Module, Module):
 
 
 class Criterion(Module):
-    def __init__(self):
-        super(Module, self).__init__()
+    def __init__(self, criterion):
+        super(Criterion, self).__init__()
+        self.criterion = criterion
+        self.__name__ = criterion.__class__.__name__
+
+    def __call__(self, *args, **kwargs):
+        return self.criterion(*args, **kwargs)
 
     def __repr__(self):
-        return 'Criterion'
+        return self.__name__
 
 
 class Optimizer(optim.Optimizer, Module):
-    def __init__(self):
-        super(Optimizer, self).__init__()
+    def __init__(self, optimizer):
+        Module.__init__(self)
+        self = optimizer
 
     def __repr__(self):
-        return 'Optimizer'
+        return optim.Optimizer.__repr__(self)
 
 
 class CNN(Model):
@@ -77,8 +83,18 @@ class DynamicNet(Model):
 
 class AlexNet(Model):
 
-    def __init__(self, num_classes=1000):
-        super(AlexNet, self).__init__()
+    __name__ = 'alexnet'
+    _DEFAULTS = {
+        'num_classes': 10,
+    }
+
+    def __init__(self, *args, **kwargs):
+        super(AlexNet, self).__init__(*args, **kwargs)
+
+        for key, value in AlexNet._DEFAULTS.items():
+            if not hasattr(self, key):
+                self[key] = value
+
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
             nn.ReLU(inplace=True),
@@ -101,7 +117,7 @@ class AlexNet(Model):
             nn.Dropout(),
             nn.Linear(4096, 4096),
             nn.ReLU(inplace=True),
-            nn.Linear(4096, num_classes),
+            nn.Linear(4096, self.num_classes),
         )
 
     def forward(self, x):
