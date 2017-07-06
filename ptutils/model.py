@@ -1,5 +1,5 @@
 import random
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import torch
 import torch.nn as nn
@@ -9,6 +9,7 @@ from .base import Module, Property
 
 
 class Model(nn.Module, Module):
+    __name__ = 'model'
     """Wrap nn.Module to change the model.state_dict() separator symbol."""
 
     # Model class will be responsible for parsing state_dicts and loading partial
@@ -20,10 +21,12 @@ class Model(nn.Module, Module):
 
 
 class Criterion(Module):
+    __name__ = 'criterion'
+
     def __init__(self, criterion):
         super(Criterion, self).__init__()
-        self.criterion = criterion
-        self.__name__ = criterion.__class__.__name__
+        self.criterion = criterion()
+        self.__name__ = criterion.__name__
 
     def __call__(self, *args, **kwargs):
         return self.criterion(*args, **kwargs)
@@ -33,15 +36,24 @@ class Criterion(Module):
 
 
 class Optimizer(optim.Optimizer, Module):
+    __name__ = 'optimizer'
+
     def __init__(self, optimizer):
         Module.__init__(self)
-        self = optimizer
+        self.state = defaultdict(dict)
+        self.param_groups = []
+        self.optimizer = optimizer
 
-    def __repr__(self):
-        return optim.Optimizer.__repr__(self)
+    def step(self, closure=None):
+        return self.optimizer(closure=closure)
+
+    def zero_grads(self):
+        return self.optimizer.zero_grads()
 
 
 class CNN(Model):
+    __name__ = 'cnn'
+
     def __init__(self,):
         super(CNN, self).__init__()
         self.layer1 = nn.Sequential(
@@ -82,7 +94,6 @@ class DynamicNet(Model):
 
 
 class AlexNet(Model):
-
     __name__ = 'alexnet'
     _DEFAULTS = {
         'num_classes': 10,

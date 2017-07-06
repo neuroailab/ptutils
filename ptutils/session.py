@@ -2,6 +2,7 @@ import copy
 import time
 import logging
 import warnings
+import datetime
 from collections import defaultdict
 
 import torch
@@ -11,7 +12,6 @@ from .base import *
 from .data import DataProvider
 from .database import DBInterface
 from .model import Model, Criterion, Optimizer
-
 
 logging.basicConfig()
 log = logging.getLogger('ptutils')
@@ -40,7 +40,7 @@ class Session(Module):
     conditioned on the state of the session and any quantity contained within.
 """
 
-    __name__ = 'sess'
+    __name__ = 'session'
     _CORE_MODULES = {
         Model.__name__: Model,
         DBInterface.__name__: DBInterface,
@@ -58,8 +58,11 @@ class Session(Module):
                 log.info('Configuration detected ...')
                 log.info('Configuration verified ...')
                 log.info('Configuring {}'.format(self.__class__.__name__))
+                self.config = arg
                 for key, value in self.Configuration.configure().items():
                     self[key] = value
+
+        self._determine_status()
 
     @property
     def status(self):
@@ -76,8 +79,7 @@ class Session(Module):
     @property
     def config(self):
         print('Getting config')
-        # self._config = self._determine_config()
-        return self._config
+        return self._config.state()
 
     @config.setter
     def config(self, config):
@@ -139,16 +141,22 @@ class Session(Module):
 
         status = {
             'valid_session': valid_sess,
-            'num_run': 'number of attempted sess.runs',
+            'cuda_available': False,
+            'use_cuda': False,
+            'device_count': 1,
+            'num_run': 0,
             'run_id': {
-                'init': '[new/resume/restart]',
-                        'start_date': 'start date',
-                        'state': '[pending/in-progress/complete]',
-                        'progress': '% complete',
-                        'eta': 'estimated time to completion',
-                        'errors': '[error1, error2, error3, ...]',
-                        'end_date': 'end date',
-                        'outcome': 'outcome description'}}
+                'init': 'new',
+                'start_date': datetime.datetime.now(),
+                'state': 'pending',
+                'progress': 0,
+                'eta': 'N/A',
+                'errors': [],
+                'end_date': 'end date',
+                'outcome': 'N/A'}}
+
+        self.Configuration['status'] = status
+        self._DEFAULT['DBInterface'].save(self.Configuration.state())
         return status
 
     def _find_stored_sess(self):
@@ -549,98 +557,3 @@ class AverageMeter(Monitor):
         return self.state
 
 
-# JUNK: TO DELETE
-# inventory = set(self.module_names())
-# cls_inventory = set(map(type, self.modules()))
-# class Config(object):
-#     def __init__(self, config_dict):
-#         self.session = None
-#         self.model = config['model']
-#         self.criterion = config['criterion']
-#         self.optimizer = config['optimizer']
-#         self.data_provider = config['data_provider']
-#         self.db = config['db_interface']
-
-#     def get_model(self):
-#         pass
-
-#     def get_data_provider(self):
-#         pass
-
-#     def get_db_interface(self):
-#         pass
-
-
-"""
-
-Potential config structure:
-
-config.session = {'session_id': session id number,
-                  'description'(optional): description of session,
-                  'status': {'num_run': number of attempted sess.runs,
-                             'run_id': {'init': [new/resume/restart],
-                                        'start_date': start date,
-                                        'state': '[pending/in-progress/complete]',
-                                        'progress': % complete,
-                                        'eta': estimated time to completion,
-                                        'errors': [error1, error2, error3, ...]
-                                        'end_date': end data,
-                                        'outcome': 'outcome description'}}
-                  'history' (optional): {instance_prop1: val, intance_prop2: val, ...}
-                  'subsessions: [subsession1, subsession2, subsession3, ...]}
-config.model = {'model': instance of model class,
-                'name' (optional): model name+description}
-config.criterion = {'criterion': }
-config.optimizer = {'model': instance of model class,
-                'name' (optional): model name+description}
-"""
-
-    # def _get_status(self):
-    #     pass
-
-    # def _load_model(self):
-    #     """Return a valid torch Module in the desired state. """
-    #     pass
-
-    # def _load_data_provider(self):
-    #     """Return a DataProvider with the desired dataset and dataloader."""
-    #     pass
-
-    # def _load_db(self):
-    #     """Return an implemented DBInterface."""
-    #     pass
-# has_essentials = (len(_ESSENTIAL_MODULES) == len(DEFAULTS))
-        # missing_mods = (
-        #     set(DEFAULTS.keys()).difference(map(type, self._CORE_MODULES)))
-
-        # core = defaultdict(list)
-        # # Partition core session components by class.
-        # for name, module in self.named_modules():
-        #     if isinstance(module, Model):
-        #         core['model'].append(name)
-        #     if isinstance(module, Session):
-        #         core['session'].append(name)
-        #     if isinstance(module, Criterion):
-        #         core['criterion'].append(name)
-        #     if isinstance(module, Optimizer):
-        #         core['optimizer'].append(name)
-        #     if isinstance(module, Configuration):
-        #         core['config'].append(name)
-        #     if isinstance(module, DBInterface):
-        #         core['db_interface'].append(name)
-        #     if isinstance(module, DataProvider):
-        #         core['data_provider'].append(name)
-
-        # # Set first module in list as default.
-        # for mod_type, mods_list in core.items():
-        #     if mods_list:
-        #         if mod_type == 'session':
-        #             if len(mods_list) > 1:
-        #                 self['_DEFAULT_' + mod_type + '_name'] = mods_list[1]
-        #         else:
-        #             self['_DEFAULT_' + mod_type + '_name'] = mods_list[0]
-
-        # if not core['config']:
-            # self._generate_config()
-            # pass
-        # valid_config self._c

@@ -7,9 +7,9 @@ import warnings
 from collections import OrderedDict, MutableMapping
 
 import torch.nn as nn
-from  torch.autograd import Variable
+from torch.autograd import Variable
 
-from .utils import Map
+from .utils import Map, sonify
 
 DEFAULT_REQUIRES_SAVE = True
 DEFAULT_SAVE_FREQ = 100
@@ -23,7 +23,6 @@ and the data is the attr value.
 
 
 class Module(object):
-
     __name__ = 'module'
 
     def __init__(self, *args, **kwargs):
@@ -359,7 +358,6 @@ class Module(object):
 
 
 class State(dict, Module):
-
     __name__ = 'state'
 
     def __init__(self, *args, **kwargs):
@@ -381,15 +379,6 @@ class State(dict, Module):
     def __call__(self, *args, **kwargs):
         return self
 
-    def __getattr__(self, attr):
-        return self.__getitem__(attr)
-
-    def __setattr__(self, name, value):
-        self.__setitem__(name, value)
-
-    def __delattr__(self):
-        return dict.__delitem__(self)
-
     def __getitem__(self, name):
         return dict.__getitem__(self, name)
 
@@ -399,6 +388,15 @@ class State(dict, Module):
         else:
             dict.__setitem__(self, name, value)
 
+    def __delattr__(self):
+        return dict.__delitem__(self)
+
+    def __getattr__(self, attr):
+        return self.__getitem__(attr)
+
+    def __setattr__(self, name, value):
+        self.__setitem__(name, value)
+
     def __dir__(self):
         return self.keys() + dir(dict(self))
 
@@ -406,24 +404,67 @@ class State(dict, Module):
         return State(copy.deepcopy(dict(self)))
 
 
-class Configuration(State):
-    __name__ = 'config'
+class SonifiedState(State):
+    __name__ = 'sonified_state'
+
+    def __init__(self, *args, **kwargs):
+        super(SonifiedState, self).__init__()
+        for arg in args:
+            if isinstance(arg, dict):
+                for k, v in arg.items():
+                    self[k] = v
+        if kwargs:
+            for k, v in kwargs.items():
+                self[k] = v
+
+    def __setitem__(self, name, value):
+        if isinstance(name, type):
+            if isinstance(value, type):
+                dict.__setitem__(self, name.__name__, (sonify(name), sonify(value)))
+                # dict.__setitem__(self, name.__name__, value.__name__)
+            elif isinstance(value, dict):
+                print(value)
+                dict.__setitem__(self, name.__name__, (sonify(name), SonifiedState(value)))
+                # dict.__setitem__(self, name.__name__, SonifiedState(value))
+            else:
+                dict.__setitem__(self, name.__name__, (sonify(name), sonify(value)))
+                # dict.__setitem__(self, name.__name__, value)
+        elif isinstance(value, type):
+                dict.__setitem__(self, name, (sonify(name), sonify(value)))
+                # dict.__setitem__(self, name, value.__name__)
+        else:
+            dict.__setitem__(self, name, (sonify(name), sonify(value)))
+            # dict.__setitem__(self, name, value)
+
+
+class Configuration(State, Module):
+    __name__ = 'configuration'
 
     def __init__(self, config_dict):
-        super(Configuration, self).__init__()
+        State.__init__(self)
         Module.__init__(self)
-        self._configs = OrderedDict()
-        self._config_dict = config_dict
+
         self._hash = None
+        self._configs = OrderedDict()
+        self._state = State(config_dict)
+        self._sonified_state = SonifiedState(self._state)
+
         for key, value in config_dict.items():
             if isinstance(key, type):
                 if isinstance(value, dict):
-                    self._configs[key.__name__] = (key, Configuration(value))
-
+                    name = key.__dict__.get('__name__')
+                    if name is not None:
+                        self._configs[key.__dict__.get('__name__')] = (key, Configuration(value))
+                    else:
+                        self._configs[key.__name__] = (key, Configuration(value))
             elif isinstance(value, dict):
                 key, value = self._find_configs(value)
                 if isinstance(value, dict):
-                    self._configs[key.__name__] = (key, Configuration(value))
+                    name = key.__dict__.get('__name__')
+                    if name is not None:
+                        self._configs[key.__dict__.get('__name__')] = (key, Configuration(value))
+                    else:
+                        self._configs[key.__name__] = (key, Configuration(value))
             else:
                 self[key] = value
 
@@ -435,8 +476,8 @@ class Configuration(State):
             self[name] = cls_(**config)
         return self
 
-    # def state(self):
-        # return self._config_dict
+    def state(self):
+        return SonifiedState(self._state)
 
     def _find_configs(self, dict_):
         for key, value in dict_.items():
@@ -452,60 +493,8 @@ class Configuration(State):
     def __setattr__(self, name, value):
             object.__setattr__(self, name, value)
 
-    def __repr__(self):
-        return pprint.pformat(self._config_dict)
-
-    def __hash__(self):
-        if self._hash is None:
-            h = 0
-            for key, value in self.items():
-                h ^= hash((key, value))
-            self._hash = h
-        return self._hash
-
-
-# class Configuration(dict, Module):
-
-    __name__ = 'config'
-
-    def __init__(self, config_dict):
-        super(Configuration, self).__init__()
-        Module.__init__(self)
-        self._configs = OrderedDict()
-        self._properties = OrderedDict()
-        self._config_dict = config_dict
-        self._hash = None
-        for key, value in config_dict.items():
-            if isinstance(key, type):
-                if isinstance(value, dict):
-                    self._configs[key.__name__] = (key, Configuration(value))
-
-            elif isinstance(value, dict):
-                key, value = self._find_configs(value)
-                if isinstance(value, dict):
-                    self._configs[key.__name__] = (key, Configuration(value))
-            else:
-                self[key] = value
-
-    def configure(self):
-        for name, (cls_, config) in self._configs.items():
-            config.configure()
-            self[name] = cls_(**config)
-        return self
-
-    def state(self):
-        return self._config_dict
-
-    def _find_configs(self, dict_):
-        for key, value in dict_.items():
-            if isinstance(key, type):
-                return key, value
-            if isinstance(value, dict):
-                key, value = self._find_configs(value)
-        return key, value
-
-    def __repr__(self):
-        return pprint.pformat(self._config_dict)
+    # def __repr__(self):
+    #     return self._config_dict.__repr__()
 
     def __hash__(self):
         if self._hash is None:
@@ -520,12 +509,188 @@ class Status(Module):
     """Verify a Module's status, compatibility and progress.
 
     """
+    __name__ = 'status'
 
     def __init__(self, *args, **kwargs):
         super(Module, self).__init__()
 
-    def verify(self):
+    def check(self):
         pass
+
+
+# class Configuration(State, Module):
+#     __name__ = 'configuration'
+
+#     def __init__(self, config_dict):
+#         State.__init__(self)
+#         Module.__init__(self)
+#         self._configs = OrderedDict()
+#         self._config_dict = State(config_dict)
+#         self._hash = None
+#         for key, value in config_dict.items():
+#             if isinstance(key, type):
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Configuration(value))
+#                     self[key.__name__] = Configuration(value)
+
+#             elif isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Configuration(value))
+#                     self[key.__name__] = Configuration(value)
+#             else:
+#                 self[key] = value
+
+#         self.configure()
+
+#     def configure(self):
+#         for name, (cls_, config) in self._configs.items():
+#             config.configure()
+#             self[name] = cls_(**config)
+#         return self
+
+#     def state(self):
+#         return {k:v for (k,v) in self.items()}
+
+#     def _find_configs(self, dict_):
+#         for key, value in dict_.items():
+#             if isinstance(key, type):
+#                 return key, value
+#             if isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#         return key, value
+
+#     def __call__(self):
+#         self.configure()
+
+#     def __setattr__(self, name, value):
+#             object.__setattr__(self, name, value)
+
+#     def __repr__(self):
+#         return self._config_dict.__repr__()
+
+#     def __hash__(self):
+#         if self._hash is None:
+#             h = 0
+#             for key, value in self.items():
+#                 h ^= hash((key, value))
+#             self._hash = h
+#         return self._hash
+
+
+# class Configuration(State):
+
+#     __name__ = 'config'
+
+#     def __init__(self, config_dict):
+#         super(Configuration, self).__init__()
+#         Module.__init__(self)
+#         self._configs = OrderedDict()
+#         self._config_dict = config_dict
+#         self._hash = None
+#         for key, value in config_dict.items():
+#             if isinstance(key, type):
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Configuration(value))
+
+#             elif isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#                 if isinstance(value, dict):
+#                     self._configs[key.__name__] = (key, Configuration(value))
+#             else:
+#                 self[key] = value
+
+#         self.configure()
+
+#     def configure(self):
+#         print('calling configure')
+#         for name, (cls_, config) in self._configs.items():
+#             config.configure()
+#             self[name] = cls_(**config)
+#         return self
+
+#     # def state(self):
+#         # return self._config_dict
+
+#     def _find_configs(self, dict_):
+#         for key, value in dict_.items():
+#             if isinstance(key, type):
+#                 return key, value
+#             if isinstance(value, dict):
+#                 key, value = self._find_configs(value)
+#         return key, value
+
+#     def __call__(self):
+#         self.configure()
+
+#     def __setattr__(self, name, value):
+#             object.__setattr__(self, name, value)
+
+#     def __repr__(self):
+#         return pprint.pformat(self._config_dict)
+
+#     def __hash__(self):
+#         if self._hash is None:
+#             h = 0
+#             for key, value in self.items():
+#                 h ^= hash((key, value))
+#             self._hash = h
+#         return self._hash
+
+
+# class Configuration(dict, Module):
+
+    # __name__ = 'config'
+
+    # def __init__(self, config_dict):
+    #     super(Configuration, self).__init__()
+    #     Module.__init__(self)
+    #     self._configs = OrderedDict()
+    #     self._properties = OrderedDict()
+    #     self._config_dict = config_dict
+    #     self._hash = None
+    #     for key, value in config_dict.items():
+    #         if isinstance(key, type):
+    #             if isinstance(value, dict):
+    #                 self._configs[key.__name__] = (key, Configuration(value))
+
+    #         elif isinstance(value, dict):
+    #             key, value = self._find_configs(value)
+    #             if isinstance(value, dict):
+    #                 self._configs[key.__name__] = (key, Configuration(value))
+    #         else:
+    #             self[key] = value
+
+    # def configure(self):
+    #     for name, (cls_, config) in self._configs.items():
+    #         config.configure()
+    #         self[name] = cls_(**config)
+    #     return self
+
+    # def state(self):
+    #     return self._config_dict
+
+    # def _find_configs(self, dict_):
+    #     for key, value in dict_.items():
+    #         if isinstance(key, type):
+    #             return key, value
+    #         if isinstance(value, dict):
+    #             key, value = self._find_configs(value)
+    #     return key, value
+
+    # def __repr__(self):
+    #     return pprint.pformat(self._config_dict)
+
+    # def __hash__(self):
+    #     if self._hash is None:
+    #         h = 0
+    #         for key, value in self.items():
+    #             h ^= hash((key, value))
+    #         self._hash = h
+    #     return self._hash
+
+
+
 
 
 class Property(object):

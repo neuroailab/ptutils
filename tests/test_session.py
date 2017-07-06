@@ -1,77 +1,79 @@
 import sys
+import pymongo as pm
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 sys.path.insert(0, '.')
 sys.path.insert(0, '..')
-from ptutils.session import Session, Configuration
-from ptutils.model import AlexNet, CNN, CIFARConv, Criterion, Optimizer
+from ptutils.base import *
+from ptutils.utils import sonify
+from ptutils.session import Session
 from ptutils.database import MongoInterface, DBInterface
+from ptutils.model import AlexNet, CNN, CIFARConv, Criterion, Optimizer
 from ptutils.data import MNISTProvider, ImageNetProvider, ImageNet, HDF5DataReader
 
+port = 27017
+db_name = 'ptutils'
+hostname = 'localhost'
+collection_name = 'ptutils'
 
-db_config = {
-    'port': 27017,
-    'hostname': 'localhost',
-    'db_name': 'ptutils',
-    'collection_name': 'ptutils'}
+config = {
+    'sess_id': 0,
+    'sess_name': 'ptutils_session',
+    'description': 'A ptutils test session'
+}
 
-# run_config = {'use_cuda': False}
+run_config = {
+    'use_cuda': True,
+}
+dbinterface_config = {
+    'port': port,
+    'hostname': hostname,
+    'db_name': db_name,
+    'collection_name': collection_name}
 
-# config_dict = {
-#     CNN: {},
-#     MNISTProvider: {},
-#     MongoInterface: db_config,
-#     nn.CrossEntropyLoss: {},
-#     Optimizer: {}
-# }
+save_config = {
+    'save_valid_freq': 20,
+    'save_filters_freq': 200,
+    'cache_filters_freq': 100}
+
+load_config = {
+    'do_restore': True,
+}
+
+optimizer_config = {
+    'optimizer': optim.Adam,
+}
+
+criterion_config = {
+    'criterion': nn.CrossEntropyLoss,
+}
+
+config.update({
+    CNN: {},
+    MNISTProvider: {},
+    Optimizer: optimizer_config,
+    Criterion: criterion_config,
+    MongoInterface: dbinterface_config,
+})
+
+# delete old database if it exists
+conn = pm.MongoClient(host=hostname, port=port)
+conn.drop_database(db_name)
+
+c = Configuration(config)
+sess = Session(c)
 
 
-sess = Session()
-sess.model = CNN()
-sess.criterion = nn.CrossEntropyLoss()
-sess.optimizer = optim.Adam(sess.model.parameters())
-sess.data = MNISTProvider()
-sess.dbinterface = MongoInterface(**db_config)
-sess.status
+candidates = sess._DEFAULT['DBInterface'].load({'sess_id': 0})
+print(candidates)
 
 
-sess.default_run()
 
-# # DB = 'ptutils_DEBUG'
-# # COL = 'CIFAR'
+# sess.default_run()
 
-# config = {}
-# config['model'] = CIFARConv()
-# config['criterion'] = nn.CrossEntropyLoss()
-# config['optimizer'] = optim.Adam(config['model'].parameters())
-# config['data_provider'] = CIFARProvider()
-# # config['data_provider'] = None
-# config['db_interface'] = MongoInterface(db_name=DB, collection_name=COL)
 # config['run'] = {'num_epochs': 50,
 #                  'batch_size': 128}
 # sess = Session(config)
-# # sess.run()
-
-# model_config = {
-#     'num_classes': 10}
-
-# dataset_config = {
-#     ImageNet: {
-#         HDF5DataReader: {},
-#         'data_source': 'path/to/daa',
-#         'transform': None}}
-
-# config_dict = {
-#     DBInterface: db_config,
-#     AlexNet: model_config,
-#     ImageNetProvider: dataset_config,
-#     'session_name': 'test_session',
-#     'description': 'a basic session to test ptutils',
-#     'session_id': 'sess_0',
-#     'use_cuda': False}
-
-# sess_config_attr = Session()
-# sess_config_attr.config = config
-# # print(sess_attr.config)
+# sess.run()
