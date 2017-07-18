@@ -1,26 +1,76 @@
-import re
 import os
+import re
+import sys
 import copy
 import json
+import yaml
+import pkgutil
 import inspect
 import logging
 import datetime
-import collections
 import pkg_resources
+import cPickle as pickle
 
 import git
 import numpy as np
 from bson.objectid import ObjectId
 
-from tensorflow.python import DType
-
 logging.basicConfig()
 log = logging.getLogger('ptutils')
 
+CONFIG_TYPES = {'yml': {'file': yaml.load, 'data': yaml.load},
+                'yaml': {'file': yaml.load, 'data': yaml.load},
+                'json': {'file': json.load, 'data': json.loads},
+                'pkl': {'file': pickle.load, 'data': pickle.loads}}
+
+
+def parse_config(config):
+    """Parse input arguments to configuration modules."""
+    if isinstance(config, dict):
+        return config
+    elif isinstance(config, str):
+        # Load configuration file
+        pattern = r'.(' + '|'.join(CONFIG_TYPES.keys()) + ')$'
+        m = re.search(pattern, config, flags=re.I)
+        if m is not None:
+            type_ = m.group().lower()[1:]
+            if os.path.isfile(config):
+                return load_file(config, type_)
+        else:
+            for t in CONFIG_TYPES.keys():
+                out = load_data(config, t)
+                if out is not None:
+                    return out
+            raise ValueError('Invalid configuration format format: {}'.format(config))
+
+
+def get_params():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-p', '--params', type=json.loads, default=None)
+    parser.add_argument('-g', '--gpu', default='0', type=str)
+    args = vars(parser.parse_args())
+    os.environ['CUDA_VISIBLE_DEVICES'] = args['gpu']
+    for p in filter(lambda x: x.endswith('_func'), args):
+        modname, objname = args[p].rsplit('.', 1)
+        mod = importlib.import_module(modname)
+        args[p] = getattr(mod, objname)
+    return args
+
+
+def load_file(config_file, type_):
+    with open(config_file) as data:
+        return CONFIG_TYPES[type_]['file'](data)
+
+
+def load_data(data, type_):
+    try:
+        return CONFIG_TYPES[type_]['data'](data)
+    except Exception:
+        return None
+
 
 def version_info(module):
-    """Gets version of a standard python module
-    """
+    """Return version of a standard python module."""
     if hasattr(module, '__version__'):
         version = module.__version__
     elif hasattr(module, 'VERSION'):
@@ -39,7 +89,7 @@ def version_info(module):
 
 
 def version_check_and_info(module):
-    """returns either git information or standard module version if not a git repo
+    """Return either git info or standard module version if not a git repo.
 
     Args: - module (module): python module object to get info for.
     Returns: dictionary of info
@@ -57,8 +107,7 @@ def version_check_and_info(module):
 
 
 def git_info(repo):
-    """information about a git repo
-    """
+    """Return information about a git repo."""
     if repo.is_dirty():
         log.warning('repo %s is dirty -- having committment issues?' % repo.git_dir)
         clean = False
@@ -95,7 +144,7 @@ def git_info(repo):
 
 
 def make_mongo_safe(_d):
-    """Makes a json-izable actually safe for insertion into Mongo."""
+    """Make a json-izable actually safe for insertion into Mongo."""
     klist = _d.keys()[:]
     for _k in klist:
         if hasattr(_d[_k], 'keys'):
@@ -108,9 +157,7 @@ def make_mongo_safe(_d):
 
 
 def sonify(arg, memo=None):
-    """when possible, returns version of argument that can be
-       serialized trivally to json format.
-    """
+    """Return version of arg that can be trivally serialized to json format."""
     if memo is None:
         memo = {}
     if id(arg) in memo:
@@ -119,8 +166,6 @@ def sonify(arg, memo=None):
     if isinstance(arg, ObjectId):
         rval = arg
     elif isinstance(arg, datetime.datetime):
-        rval = arg
-    elif isinstance(arg, DType):
         rval = arg
     elif isinstance(arg, np.floating):
         rval = float(arg)
@@ -160,8 +205,7 @@ def sonify(arg, memo=None):
 
 
 def jsonize(x):
-    """returns version of x that can be serialized trivally to json format
-    """
+    """Return version of x that can be serialized trivally to json format."""
     try:
         json.dumps(x)
     except TypeError:
@@ -170,74 +214,162 @@ def jsonize(x):
         return x
 
 
-class frozendict(collections.Mapping):
+def load_modules_from_path(path):
+    """Import all modules from the given directory."""
+    # Check and fix the path
+    if path[-1:] != '/':
+        path += '/'
+
+    # Get a list of files in the directory, if the directory exists
+    if not os.path.exists(path):
+        raise OSError('Directory does not exist: {}'.format(path))
+
+    # Add path to the system path
+    sys.path.append(path)
+    # Load all the files in path
+    for f in os.listdir(path):
+        # Ignore anything that isn't a .py file
+        if len(f) > 3 and f[-3:] == '.py':
+            modname = f[:-3]
+            # Import the module
+            __import__(modname, globals(), locals(), ['*'])
+
+
+def load_class_from_name(fqcn):
+    """Break apart fully qualified name (fqcn) to get module and classname."""
+    paths = fqcn.split('.')
+    modulename = '.'.join(paths[:-1])
+    classname = paths[-1]
+    # Import the module
+    __import__(modulename, globals(), locals(), ['*'])
+    # Get the class
+    cls = getattr(sys.modules[modulename], classname)
+    # Check cls
+    if not inspect.isclass(cls):
+        raise TypeError('{} is not a class'.format(fqcn))
+    # Return class
+    return cls
+
+
+def import_string(import_name, silent=False):
+    """Imports an object based on a string.  This is useful if you want to
+    use import paths as endpoints or something similar.  An import path can
+    be specified either in dotted notation (``xml.sax.saxutils.escape``)
+    or with a colon as object delimiter (``xml.sax.saxutils:escape``).
+    If `silent` is True the return value will be `None` if the import fails.
+    :param import_name: the dotted name for the object to import.
+    :param silent: if set to `True` import errors are ignored and
+                   `None` is returned instead.
+    :return: imported object
     """
-    An immutable wrapper around dictionaries that implements the complete :py:class:`collections.Mapping`
-    interface. It can be used as a drop-in replacement for dictionaries where immutability is desired.
+    # force the import name to automatically convert to strings
+    # __import__ is not able to handle unicode strings in the fromlist
+    # if the module is a package
+    import_name = str(import_name).replace(':', '.')
+    try:
+        try:
+            __import__(import_name)
+        except ImportError:
+            if '.' not in import_name:
+                raise
+        else:
+            return sys.modules[import_name]
 
-    from https://pypi.python.org/pypi/frozendict
+        module_name, obj_name = import_name.rsplit('.', 1)
+        try:
+            module = __import__(module_name, None, None, [obj_name])
+        except ImportError:
+            # support importing modules not yet set up by the parent module
+            # (or package for that matter)
+            module = import_string(module_name)
 
+        try:
+            return getattr(module, obj_name)
+        except AttributeError as e:
+            raise ImportError(e)
+
+    except ImportError as e:
+        if not silent:
+            raise(
+                ImportStringError,
+                ImportStringError(import_name, e),
+                sys.exc_info()[2])
+
+
+def find_modules(import_path, include_packages=False, recursive=False):
+    """Finds all the modules below a package.
+
+    This can be useful to automatically import all views / controllers so
+    that their metaclasses / function decorators have a chance to register
+    themselves on the application.
+
+    Packages are not returned unless `include_packages` is `True`.  This can
+    also recursively list modules but in that case it will import all the
+    packages to get the correct load path of that module.
+
+    Args:
+        import_path: the dotted name for the package to find child modules.
+        include_packages: set to `True` if packages should be returned, too.
+        recursive: set to `True` if recursion should happen.
+    Returns:
+        generator
     """
+    module = import_string(import_path)
+    path = getattr(module, '__path__', None)
+    if path is None:
+        raise ValueError('%r is not a package' % import_path)
+    basename = module.__name__ + '.'
+    for importer, modname, ispkg in pkgutil.iter_modules(path):
+        modname = basename + modname
+        if ispkg:
+            if include_packages:
+                yield modname
+            if recursive:
+                for item in find_modules(modname, include_packages, True):
+                    yield item
+        else:
+            yield modname
 
-    dict_cls = dict
 
-    def __init__(self, *args, **kwargs):
-        self._dict = self.dict_cls(*args, **kwargs)
-        self._hash = None
+class ImportStringError(ImportError):
 
-    def __getitem__(self, key):
-        return self._dict[key]
+    """Provides information about a failed :func:`import_string` attempt."""
 
-    def __contains__(self, key):
-        return key in self._dict
+    #: String in dotted notation that failed to be imported.
+    import_name = None
+    #: Wrapped exception.
+    exception = None
 
-    def copy(self, **add_or_replace):
-        return self.__class__(self, **add_or_replace)
+    def __init__(self, import_name, exception):
+        self.import_name = import_name
+        self.exception = exception
 
-    def __iter__(self):
-        return iter(self._dict)
+        msg = (
+            'import_string() failed for %r. Possible reasons are:\n\n'
+            '- missing __init__.py in a package;\n'
+            '- package or module path not included in sys.path;\n'
+            '- duplicated package or module name taking precedence in '
+            'sys.path;\n'
+            '- missing module, class, function or variable;\n\n'
+            'Debugged import:\n\n%s\n\n'
+            'Original exception:\n\n%s: %s')
 
-    def __len__(self):
-        return len(self._dict)
+        name = ''
+        tracked = []
+        for part in import_name.replace(':', '.').split('.'):
+            name += (name and '.') + part
+            imported = import_string(name, silent=True)
+            if imported:
+                tracked.append((name, getattr(imported, '__file__', None)))
+            else:
+                track = ['- %r found in %r.' % (n, i) for n, i in tracked]
+                track.append('- %r not found.' % name)
+                msg = msg % (import_name, '\n'.join(track),
+                             exception.__class__.__name__, str(exception))
+                break
+
+        ImportError.__init__(self, msg)
 
     def __repr__(self):
-        return '<%s %r>' % (self.__class__.__name__, self._dict)
-
-    def __hash__(self):
-        if self._hash is None:
-            h = 0
-            for key, value in self._dict.items():
-                h ^= hash((key, value))
-            self._hash = h
-        return self._hash
-
-
-
-class Map(dict):
-    def __init__(self, *args, **kwargs):
-        super(Map, self).__init__(*args, **kwargs)
-        for arg in args:
-            if isinstance(arg, dict):
-                for k, v in arg.items():
-                    self[k] = v
-
-        if kwargs:
-            for k, v in kwargs.items():
-                self[k] = v
-
-    def __getattr__(self, attr):
-        return self.get(attr)
-
-    def __setattr__(self, name, value):
-        if isinstance(value, dict):
-            dict.__setitem__(self, name, Map(value))
-        else:
-            dict.__setitem__(self, name, value)
-
-    __delattr__ = dict.__delitem__
-
-    def __dir__(self):
-        return self.keys() + dir(dict(self))
-
-    def __deepcopy__(self, memo):
-        return Map(copy.deepcopy(dict(self)))
+        return '<%s(%r, %r)>' % (self.__class__.__name__, self.import_name,
+                                 self.exception)

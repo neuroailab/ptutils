@@ -13,7 +13,7 @@ else:
     import queue
     string_classes = (str, bytes)
 
-from .base import Module
+# from .base import Module
 
 _use_shared_memory = False
 """Whether to use shared memory in default_collate"""

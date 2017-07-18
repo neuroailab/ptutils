@@ -8,10 +8,11 @@ from collections import defaultdict
 import torch
 from torch.autograd import Variable
 
-from .base import *
-from .data import DataProvider
-from .database import DBInterface
-from .model import Model, Criterion, Optimizer
+from ptutils import base
+from base import  Configuration, Status
+from data import DataProvider
+from database import DBInterface
+from model import Model, Criterion, Optimizer
 
 logging.basicConfig()
 log = logging.getLogger('ptutils')
@@ -19,7 +20,7 @@ log.setLevel('DEBUG')
 logging.captureWarnings(True)
 
 
-class Session(Module):
+class Session(base.Session):
     """Coordinates an NN experiment.
 
     Base class for all neural network experiments that specifically serves to
@@ -38,126 +39,66 @@ class Session(Module):
     graph. The Session attempts to accommodate this flexible nature by giving
     researchers a dynamic session whereby execution of the session is
     conditioned on the state of the session and any quantity contained within.
-"""
 
+    """
     __name__ = 'session'
-    _CORE_MODULES = {
-        Model.__name__: Model,
-        DBInterface.__name__: DBInterface,
-        DataProvider.__name__: DataProvider,
-    }
 
     def __init__(self, *args, **kwargs):
+        """Initialize a session module."""
         super(Session, self).__init__(*args, **kwargs)
 
-        self._DEFAULT = defaultdict(list)
-        self._MISSING = copy.deepcopy(self._CORE_MODULES)
-
+        # self._DEFAULT = defaultdict(list)
+        # self._MODULES = defaultdict(list)
+        # self._MISSING = copy.deepcopy(self._CORE_MODULES)
         for arg in args:
             if isinstance(arg, Configuration):
                 log.info('Configuration detected ...')
                 log.info('Configuration verified ...')
                 log.info('Configuring {}'.format(self.__class__.__name__))
-                self.config = arg
-                for key, value in self.Configuration.configure().items():
-                    self[key] = value
+                self[arg.__name__] = arg
 
-        self._determine_status()
 
-    @property
-    def status(self):
-        self._status = self._determine_status()
-        return self._status
+        # self._determine_status()
 
-    @status.setter
-    def status(self, status):
-        current_status = self._determine_status()
-        if status != current_status:
-            warnings.warn('Status mismatch')
-        self._status = current_status
+    # @property
+    # def status(self):
+    #     self._status = self._determine_status()
+    #     return self._status
 
-    @property
-    def config(self):
-        print('Getting config')
-        return self._config.state()
+    # @status.setter
+    # def status(self, status):
+    #     current_status = self._determine_status()
+    #     if status != current_status:
+    #         warnings.warn('Status mismatch')
+    #     self._status = current_status
 
-    @config.setter
-    def config(self, config):
-        current_config = self._determine_config()
-        if config != current_status:
-            print('Config mismatch')
-        self._config = config
+    # @property
+    # def config(self):
+    #     print('Getting config')
+    #     return self._config.state()
+
+    # @config.setter
+    # def config(self, config):
+    #     current_config = self._determine_config()
+    #     if config != current_status:
+    #         print('Config mismatch')
+    #     self._config = config
 
     def __setattr__(self, name, value):
-        Module.__setattr__(self, name, value)
+        """Set session attributest."""
+        super(Session, self).__setattr__(name, value)
 
         if isinstance(value, Configuration):
+
             print('Configuration is being assigned!')
-            Module.__setattr__(self, 'config', value)
-            for modname, mod in value.configure().items():
-                Module.__setattr__(self, modname, mod)
+            for key in value._modules.keys():
+                Module.__setattr__(self, key, value._modules.pop(key))
+                # self[key] = arg._modules.pop(key)
+            # for modname, mod in value._modules.items():
+                # Module.__setattr__(self, modname, mod)
 
     def _determine_config(self):
         pass
-
-    def _determine_status(self):
-        log.info('Determining session status ...')
-        """Compare the config to the db to get status of the session."""
-        # CALL _get_status whenever a module or property is added.
-
-        # TODO:
-        # (1) Query database for previous status.
-        # (2) If it doesn't exist, create it.
-        # (3) If it does exist, verify it.
-
-        # Take module inventory.
-
-        # Partition core session components by class.
-        for name, module in self.named_modules():
-            for core_name, core_module in self._CORE_MODULES.items():
-                if isinstance(module, core_module):
-                    if not self._DEFAULT[core_name]:
-                        self._DEFAULT[core_name] = module
-                        self._MISSING.pop(core_name)
-
-        # valid sess if all components are present and config is compatible
-        valid_sess = True if (not self._MISSING) else False
-
-        # for db in db_interfaces:
-        # # TODO: look for previous sessions
-        #     candidates = db.load(self.config)
-        #     for candidate in candidates:
-        #     # TODO: Attempt to load missing components
-        #     # TODO: Attempt to reuse previous experiements
-        #         pass
-        # # TODO: By scanning for previous sessions:
-        # # should determine run number, new/
-
-        if valid_sess:
-            log.info('Current session is valid!')
-        else:
-            log.warning('Current session is NOT valid. Please review ' +
-                        'the session\'s configuration before continuing')
-
-        status = {
-            'valid_session': valid_sess,
-            'cuda_available': False,
-            'use_cuda': False,
-            'device_count': 1,
-            'num_run': 0,
-            'run_id': {
-                'init': 'new',
-                'start_date': datetime.datetime.now(),
-                'state': 'pending',
-                'progress': 0,
-                'eta': 'N/A',
-                'errors': [],
-                'end_date': 'end date',
-                'outcome': 'N/A'}}
-
-        self.Configuration['status'] = status
-        self._DEFAULT['DBInterface'].save(self.Configuration.state())
-        return status
 
     def _find_stored_sess(self):
         pass
@@ -247,7 +188,6 @@ class Session(Module):
 
     def default_run(self):
         """Run an session specified by its configuration and status."""
-
         # TODO: Use status to start/resume session if needed
         # TODO: If run() is not overridden, run default from config.
         # TODO: Log and save progress
@@ -273,9 +213,9 @@ class Session(Module):
                 'prec1': prec1})
             # 'optimizer': self.optimizer.state_dict()})
             # if prec1 > 60:
-                # print('-' * 80)
-                # self.model.re_init_fc(num_classes=100)
-                # self.dataset = 'CIFAR100'
+            # print('-' * 80)
+            # self.model.re_init_fc(num_classes=100)
+            # self.dataset = 'CIFAR100'
 
     def _run(self, mode='train'):
 
@@ -359,7 +299,7 @@ class Session(Module):
         return top1.avg if mode == 'test' else None
 
     def register_pre_run_hook(self, hook):
-        """Registers a backward hook on the module.
+        """Register a backward hook on the module.
 
         The hook will be called every time the gradients with respect to module
         inputs are computed. The hook should have the following signature::
@@ -380,7 +320,7 @@ class Session(Module):
         return handle
 
     def register_post_run_hook(self, hook):
-        """Registers a forward hook on the module.
+        """Register a forward hook on the module.
 
         The hook will be called every time :func:`forward` computes an output.
         It should have the following signature::
@@ -417,7 +357,8 @@ class Session(Module):
 
 
 def train_epoch(train_loader, model, criterion, optimizer, epoch, db):
-    _run_epoch(train_loader, model, criterion, optimizer, epoch, db, mode='train')
+    _run_epoch(train_loader, model, criterion,
+               optimizer, epoch, db, mode='train')
 
 
 def validate_epoch(val_loader, model, criterion, optimizer, epoch, db):
@@ -555,5 +496,3 @@ class AverageMeter(Monitor):
 
     def view(self):
         return self.state
-
-

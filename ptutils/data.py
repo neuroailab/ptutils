@@ -1,16 +1,15 @@
 from __future__ import division, print_function, absolute_import
 
 # import h5py
-from .dataloader import *
+from dataloader import DataLoader
 
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset as dset
 
-from .base import *
+from ptutils import base
 
-
-class DataProvider(Module):
+class DataProvider(base.DataProvider):
     """Interface for all DataProvider subclasses.
 
     The `DataProvider` class is responsible for parsing incoming requests from
@@ -34,6 +33,8 @@ class DataProvider(Module):
     subprocesses to use for data loading.
     See http://pytorch.org/docs/data.html for more details.
     """
+    __name__ = 'dataprovider'
+
     def __init__(self, *args, **kwargs):
         super(DataProvider, self).__init__(*args, **kwargs)
 
@@ -45,13 +46,16 @@ class DataProvider(Module):
         return self.provide()
 
 
-class Dataset(Module, dset):
+class Dataset(base.DataSet, dset):
     """Interface for all Dataset subclasses.
 
     This class simply extends Pytorch's Dataset class to be able to load data
     in different formats by introducing the notion of a `DataReader` and
     `transform`.
     """
+
+    __name__ = 'dataset'
+
     def __init__(self, *args, **kwargs):
         super(Dataset, self).__init__(*args, **kwargs)
         self.data_source = None
@@ -74,7 +78,7 @@ class Dataset(Module, dset):
         raise NotImplementedError()
 
 
-class DataReader(Module):
+class DataReader(base.DataReader):
     """Interface for DataReader subclasses (e.g. HDF5, TFRecords, etc.)
     - Reads data of a specified format efficiently.
     - Exists completely independent of anything ptutils related.
@@ -105,7 +109,7 @@ class MNISTProvider(DataProvider):
         super(MNISTProvider, self).__init__()
         self.modes = ('train', 'test')
         for mode in self.modes:
-            self[mode] = MNIST(root='../tests/data/',
+            self[mode] = MNIST(root='../tests/resources/data/',
                                train=(mode == 'train'),
                                transform=transforms.ToTensor(),
                                download=True)
@@ -130,11 +134,11 @@ class CIFARProvider(DataProvider):
         self.modes = ('train', 'test')
         self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
         for mode in self.modes:
-            self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/data/',
+            self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/resources/data/',
                                                            train=(mode == 'train'),
                                                            transform=transforms.ToTensor(),
                                                            download=True)
-            self.datasets['CIFAR100'][mode] = dsets.CIFAR100(root='../tests/data/',
+            self.datasets['CIFAR100'][mode] = dsets.CIFAR100(root='../tests/resources/data/',
                                                              train=(mode == 'train'),
                                                              transform=transforms.ToTensor(),
                                                              download=True)

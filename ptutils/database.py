@@ -9,11 +9,10 @@ from bson.binary import Binary
 from bson.objectid import ObjectId
 
 import torch
+import base
 
-from base import Module
 
-
-class DBInterface(Module):
+class DBInterface(base.DBInterface):
     """Interface for all DBInterface subclasses.
 
     Your database class should subclass this interface by maintaining the
@@ -31,7 +30,7 @@ class DBInterface(Module):
         Remove `obj` from the database `self.db_name`.
     """
 
-    __name__ = 'db_interface'
+    __name__ = 'dbinterface'
 
     def __init__(self, *args, **kwargs):
         super(DBInterface, self).__init__(*args, **kwargs)
@@ -48,6 +47,8 @@ class DBInterface(Module):
 
 class MongoInterface(DBInterface):
     """Simple and lightweight mongodb interface for saving experimental data files."""
+
+    __name__ = 'mongointerface'
 
     _DEFAULTS = {
         'port': 27017,
@@ -129,7 +130,8 @@ class MongoInterface(DBInterface):
 
             self._new_tensor_ids = []
 
-            # Replace tensors with either a new gridfs file or a reference to the old gridfs file.
+            # Replace tensors with either a new gridfs file or a reference to
+            # the old gridfs file.
             docCopy = self._save_tensors(docCopy)
             docCopy['_tensor_ids'] = self._new_tensor_ids
             doc['_tensor_ids'] = self._new_tensor_ids
@@ -144,7 +146,8 @@ class MongoInterface(DBInterface):
             docCopy['insertion_date'] = datetime.datetime.now()
             doc['insertion_date'] = datetime.datetime.now()
 
-            # Insert into the collection and restore full data into original document object
+            # Insert into the collection and restore full data into original
+            # document object
             docCopy = self._dot_to_vbar(docCopy)
             new_id = self.collection.save(docCopy)
             doc['_id'] = new_id
@@ -194,7 +197,8 @@ class MongoInterface(DBInterface):
         results = self.collection.find(query)
 
         if get_tensors:
-            all_results = [self._vbar_to_dot(self._load_tensor(doc)) for doc in results]
+            all_results = [self._vbar_to_dot(
+                self._load_tensor(doc)) for doc in results]
         else:
             all_results = [self._vbar_to_dot(doc) for doc in results]
 
@@ -290,9 +294,11 @@ class MongoInterface(DBInterface):
         for (key, value) in document.items():
             if isinstance(value, ObjectId) and key != '_id':
                 if key == '_Variable_data':
-                    document = torch.autograd.Variable(self._binary_to_tensor(self.fs.get(value).read()))
+                    document = torch.autograd.Variable(
+                        self._binary_to_tensor(self.fs.get(value).read()))
                 else:
-                    document[key] = self._binary_to_tensor(self.fs.get(value).read())
+                    document[key] = self._binary_to_tensor(
+                        self.fs.get(value).read())
             elif isinstance(value, dict):
                 document[key] = self._load_tensor(value)
         return document
@@ -321,7 +327,8 @@ class MongoInterface(DBInterface):
                 data_BSON = self._tensor_to_binary(value)
                 data_MD5 = hashlib.md5(data_BSON).hexdigest()
 
-                # Does this tensor match the hash of anything in the object already?
+                # Does this tensor match the hash of anything in the object
+                # already?
                 match = False
                 for tensor_id in self._old_tensor_ids:
                     print('Checking if {} is already in the db... '.format(tensor_id))

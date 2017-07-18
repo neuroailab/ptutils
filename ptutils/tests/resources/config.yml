@@ -1,0 +1,30 @@
+sess_id: 0
+sess_name: 'ptutils_session'
+description: 'A ptutils test session'
+
+!!python/name:ptutils.model.CNN '': {}
+
+!!python/name:ptutils.data.MNISTProvider '': {}
+
+!!python/name:ptutils.model.Optimizer '': &optimizer
+    optimizer: !!python/name:torch.optim.Adam
+
+!!python/name:ptutils.model.Criterion '': &criterion
+    criterion: !!python/name:torch.nn.CrossEntropyLoss ''
+
+!!python/name:ptutils.database.MongoInterface '': &dbinterface
+    port: 27017
+    hostname: 'localhost'
+    db_name: 'ptutils'
+    collection_name: 'ptutils'
+
+save: &save
+    save_valid_freq: 20
+    save_filters_freq: 200
+    cache_filters_freq: 100
+
+run: &run
+    use_cuda: True
+
+load: &load
+    do_restore: True

@@ -1,14 +1,13 @@
 import random
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .base import Module, Property
+import base
 
-
-class Model(nn.Module, Module):
+class Model(nn.Module, base.Model):
     __name__ = 'model'
     """Wrap nn.Module to change the model.state_dict() separator symbol."""
 
@@ -17,10 +16,10 @@ class Model(nn.Module, Module):
 
     def __init__(self, *args, **kwargs):
         nn.Module.__init__(self)
-        Module.__init__(self, *args, **kwargs)
+        base.Model.__init__(self, *args, **kwargs)
 
 
-class Criterion(Module):
+class Criterion(base.Criterion):
     __name__ = 'criterion'
 
     def __init__(self, criterion):
@@ -35,14 +34,14 @@ class Criterion(Module):
         return self.__name__
 
 
-class Optimizer(optim.Optimizer, Module):
+class Optimizer(optim.Optimizer, base.Optimizer):
     __name__ = 'optimizer'
 
     def __init__(self, optimizer):
-        Module.__init__(self)
+        base.Optimizer.__init__(self)
         self.state = defaultdict(dict)
         self.param_groups = []
-        self.optimizer = optimizer
+        self.optimizer_cls = optimizer
 
     def step(self, closure=None):
         return self.optimizer(closure=closure)
@@ -68,7 +67,7 @@ class CNN(Model):
             nn.MaxPool2d(2))
         self.fc = nn.Linear(7 * 7 * 32, 10)
 
-        self.learning_rate = Property(0.001)
+        self.learning_rate = 0.001
 
     def forward(self, x):
         out = self.layer1(x)

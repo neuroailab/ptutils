@@ -1,0 +1,15 @@
+description: description of session (optional)
+session_id: session id number (unique to the session
+session_name: session_name
+? !!python/name:ptutils.database.MongoInterface ''
+: {collection_name: ptutils_col_DEBUG, db_name: ptutils_db_DEBUG, hostname: localhost,
+  port: 27017}
+? !!python/name:ptutils.model.AlexNet ''
+: {num_classes: 10}
+? !!python/name:ptutils.data.ImageNetProvider ''
+: ? !!python/name:ptutils.data.ImageNet ''
+  : trouble:
+      even_more_trouble:
+        data_source: path_to_source
+        ? !!python/name:ptutils.data.HDF5DataReader ''
+        : {}
