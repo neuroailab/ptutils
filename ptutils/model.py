@@ -1,60 +1,112 @@
+"""ptutils model.py
+
+Encapsulates a neural network model, criterion and optimizer.
+
+"""
 import random
-from collections import defaultdict
 
 import torch
+from torch.autograd import Variable
 import torch.nn as nn
-import torch.optim as optim
+from torch.nn.parallel import data_parallel
 
-import base
+from ptutils.base import Base
 
-class Model(nn.Module, base.Model):
-    __name__ = 'model'
-    """Wrap nn.Module to change the model.state_dict() separator symbol."""
-
-    # Model class will be responsible for parsing state_dicts and loading partial
-    # models, reusing parts of trained networks etc.
+class Model(Base):
 
     def __init__(self, *args, **kwargs):
-        nn.Module.__init__(self)
-        base.Model.__init__(self, *args, **kwargs)
+        super(Model, self).__init__(*args, **kwargs)
+
+        # Core
+        # self._net = None
+        # self._criterion = None
+        # self._optimizer = None
+
+        # GPU and dtype business
+        # This should go in the params 'specification (spec)'
+        self._dtype = 'float'
+        self._devices = None
+        self._use_cuda = torch.cuda.is_available()
+        # self._use_cuda = False
+
+        # self.model = torch.nn.DataParallel(self.model).cuda()
+
+        # use_cuda = torch.cuda.is_available()
+        # dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+
+        # if use_cuda:
+        #     self.model.cuda()
+        #     self.criterion.cuda()
+
+        # # Select mode
+        # if mode == 'train':
+        #     self.model.train()
+        #     volatile = False
+        # else:
+        #     self.model.eval()
+        #     volatile = True
+
+        self._loss = None
+
+    def output(self, input):
+        input_var = Variable(input)
+        if self._devices is not None:
+            return data_parallel(self.net, input_var, list(self._devices))
+        else:
+            return self.net(input_var)
+
+    def loss(self, output, target):
+        target_var = Variable(target)
+        loss = self.criterion(output, target_var)
+        return loss
+
+    def compute_gradients(self, loss=None):
+        loss.backward()
+
+    def apply_gradients(self):
+        self.optimizer.step()
+
+    def optimize(self, loss=None):
+        self.compute_gradients(loss=loss)
+        self.apply_gradients()
+        self.optimizer.zero_grad()
+
+    def forward(self, input, target):
+        output = self.output(input)
+        self._loss = self.loss(output, target)
+        self.optimize(self._loss)
+
+    @property
+    def net(self):
+        return self._bases['net']
+
+    @net.setter
+    def net(self, value):
+        self._bases['net'] = value
+
+    @property
+    def criterion(self):
+        return self._bases['criterion']
+
+    @criterion.setter
+    def criterion(self, value):
+        self._bases['criterion'] = value
+
+    @property
+    def optimizer(self):
+        return self._bases['optimizer']
+
+    @optimizer.setter
+    def optimizer(self, value):
+        self._bases['optimizer'] = value
 
 
-class Criterion(base.Criterion):
-    __name__ = 'criterion'
+class MNIST(nn.Module):
 
-    def __init__(self, criterion):
-        super(Criterion, self).__init__()
-        self.criterion = criterion()
-        self.__name__ = criterion.__name__
+    def __init__(self, devices=1):
+        super(MNIST, self).__init__()
 
-    def __call__(self, *args, **kwargs):
-        return self.criterion(*args, **kwargs)
-
-    def __repr__(self):
-        return self.__name__
-
-
-class Optimizer(optim.Optimizer, base.Optimizer):
-    __name__ = 'optimizer'
-
-    def __init__(self, optimizer):
-        base.Optimizer.__init__(self)
-        self.state = defaultdict(dict)
-        self.param_groups = []
-        self.optimizer_cls = optimizer
-
-    def step(self, closure=None):
-        return self.optimizer(closure=closure)
-
-    def zero_grads(self):
-        return self.optimizer.zero_grads()
-
-
-class CNN(Model):
-    __name__ = 'cnn'
-
-    def __init__(self,):
-        super(CNN, self).__init__()
+        self.devices = devices
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
             nn.BatchNorm2d(16),
@@ -67,8 +119,6 @@ class CNN(Model):
             nn.MaxPool2d(2))
         self.fc = nn.Linear(7 * 7 * 32, 10)
 
-        self.learning_rate = 0.001
-
     def forward(self, x):
         out = self.layer1(x)
         out = self.layer2(out)
@@ -77,7 +127,7 @@ class CNN(Model):
         return out
 
 
-class DynamicNet(Model):
+class DynamicNet(nn.Module):
     def __init__(self, D_in, H, D_out):
         super(DynamicNet, self).__init__()
         self.input_linear = torch.nn.Linear(D_in, H)
@@ -92,18 +142,11 @@ class DynamicNet(Model):
         return y_pred
 
 
-class AlexNet(Model):
-    __name__ = 'alexnet'
-    _DEFAULTS = {
-        'num_classes': 10,
-    }
+class AlexNet(nn.Module):
 
-    def __init__(self, *args, **kwargs):
-        super(AlexNet, self).__init__(*args, **kwargs)
-
-        for key, value in AlexNet._DEFAULTS.items():
-            if not hasattr(self, key):
-                self[key] = value
+    def __init__(self, num_classes=10):
+        super(AlexNet, self).__init__()
+        self.num_classes = num_classes
 
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=11, stride=4, padding=2),
@@ -137,10 +180,12 @@ class AlexNet(Model):
         return x
 
 
-class CIFARConv(Model):
+class CIFARConv(nn.Module):
 
     def __init__(self, num_classes=10):
         super(CIFARConv, self).__init__()
+        self.num_classes = num_classes
+
         self.features = nn.Sequential(
             nn.Conv2d(3, 64, kernel_size=5, padding=2),
             nn.BatchNorm2d(64),
@@ -178,7 +223,7 @@ class CIFARConv(Model):
         return x
 
 
-class CIFARConvOld(Model):
+class CIFARConvOld(nn.Module):
     def __init__(self, num_classes=10):
         super(CIFARConv, self).__init__()
         self.layer1 = nn.Sequential(

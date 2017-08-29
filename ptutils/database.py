@@ -9,10 +9,11 @@ from bson.binary import Binary
 from bson.objectid import ObjectId
 
 import torch
-import base
+
+from base import Base
 
 
-class DBInterface(base.DBInterface):
+class DBInterface(Base):
     """Interface for all DBInterface subclasses.
 
     Your database class should subclass this interface by maintaining the
@@ -30,8 +31,6 @@ class DBInterface(base.DBInterface):
         Remove `obj` from the database `self.db_name`.
     """
 
-    __name__ = 'dbinterface'
-
     def __init__(self, *args, **kwargs):
         super(DBInterface, self).__init__(*args, **kwargs)
 
@@ -48,37 +47,24 @@ class DBInterface(base.DBInterface):
 class MongoInterface(DBInterface):
     """Simple and lightweight mongodb interface for saving experimental data files."""
 
-    __name__ = 'mongointerface'
+    def __init__(self,
+                 database_name,
+                 collection_name,
+                 hostname='localhost',
+                 port=27017):
+                 # **kwargs):
+        super(MongoInterface, self).__init__(**kwargs)
+        # super(MongoInterface, self).__init__()
 
-    _DEFAULTS = {
-        'port': 27017,
-        'hostname': 'localhost',
-        'db_name': 'DEFAULT_DATABASE',
-        'collection_name': 'DEFAULT_COLLECTION',
-    }
-
-    # NOTE call via MongoInterface(**config)
-    def __init__(self, db_name, collection_name, hostname='localhost', port=27017):
-        super(MongoInterface, self).__init__(db_name=db_name,
-                                             collection_name=collection_name,
-                                             hostname=hostname,
-                                             port=port)
-        self.db_name = db_name
-        self.collection_name = collection_name
-        self.hostname = hostname
         self.port = port
-
-    # def __init__(self, *args, **kwargs):
-    #     super(MongoInterface, self).__init__(*args, **kwargs)
-
-        # for key, value in MongoInterface._DEFAULTS.items():
-        #     if not hasattr(self, key):
-        #         self[key] = value
+        self.hostname = hostname
+        self.database_name = database_name
+        self.collection_name = collection_name
 
         self.client = pm.MongoClient(self.hostname, self.port)
-        self.db = self.client[self.db_name]
-        self.collection = self.db[self.collection_name]
-        self.fs = gridfs.GridFS(self.db)
+        self.database = self.client[self.database_name]
+        self.collection = self.database[self.collection_name]
+        self.filesystem = gridfs.GridFS(self.database)
 
     def _close(self):
         self.client.close()
@@ -86,13 +72,11 @@ class MongoInterface(DBInterface):
     def __del__(self):
         self._close()
 
-    # def state_dict(self):
-        # pass
-
     # Public methods: ---------------------------------------------------------
 
     def save(self, document):
-        """Stores a dictionary or list of dictionaries as as a document in collection.
+        """Store a dictionary or list of dictionaries as as a document in collection.
+
         The collection is specified in the initialization of the object.
 
         Note that if the dictionary has an '_id' field, and a document in the
@@ -108,8 +92,8 @@ class MongoInterface(DBInterface):
 
         Returns:
             id_values: list of ObjectIds of the inserted object(s).
-        """
 
+        """
         # Simplfy things below by making even a single document a list.
         if not isinstance(document, list):
             document = [document]
@@ -120,11 +104,11 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            docCopy = copy.deepcopy(doc)
+            doc_copy = copy.deepcopy(doc)
 
             # Make a list of any existing referenced gridfs files.
             try:
-                self._old_tensor_ids = docCopy['_tensor_ids']
+                self._old_tensor_ids = doc_copy['_tensor_ids']
             except KeyError:
                 self._old_tensor_ids = []
 
@@ -132,24 +116,25 @@ class MongoInterface(DBInterface):
 
             # Replace tensors with either a new gridfs file or a reference to
             # the old gridfs file.
-            docCopy = self._save_tensors(docCopy)
-            docCopy['_tensor_ids'] = self._new_tensor_ids
+            doc_copy = self._save_tensors(doc_copy)
+
             doc['_tensor_ids'] = self._new_tensor_ids
+            doc_copy['_tensor_ids'] = self._new_tensor_ids
 
             # Cleanup any remaining gridfs files (these used to be pointed to by document, but no
             # longer match any tensor that was in the db.
             for id in self._old_tensor_ids:
-                self.fs.delete(id)
+                self.filesystem.delete(id)
             self._old_tensor_ids = []
 
             # Add insertion date field to every document.
-            docCopy['insertion_date'] = datetime.datetime.now()
             doc['insertion_date'] = datetime.datetime.now()
+            doc_copy['insertion_date'] = datetime.datetime.now()
 
             # Insert into the collection and restore full data into original
             # document object
-            docCopy = self._dot_to_vbar(docCopy)
-            new_id = self.collection.save(docCopy)
+            doc_copy = self._mongoify(doc_copy)
+            new_id = self.collection.save(doc_copy)
             doc['_id'] = new_id
             object_ids.append(new_id)
 
@@ -166,6 +151,7 @@ class MongoInterface(DBInterface):
         Returns:
             out: list of documents from the DB.  If a document w/the object
                 did not exist, a None object is returned instead.
+
         """
         if type(ids) is not list:
             ids = [ids]
@@ -185,22 +171,23 @@ class MongoInterface(DBInterface):
         return out
 
     def load(self, query, get_tensors=True):
-        """Performs a search using the presented query.
+        """Perform a search using the presented query.
 
         Args:
             query: dictionary of key-value pairs to use for querying the mongodb
 
         Returns:
             all_results: list of full documents from the collection
+
         """
-        query = self._dot_to_vbar(query)
+        query = self._mongoify(query)
         results = self.collection.find(query)
 
         if get_tensors:
-            all_results = [self._vbar_to_dot(
+            all_results = [self._de_mongoify(
                 self._load_tensor(doc)) for doc in results]
         else:
-            all_results = [self._vbar_to_dot(doc) for doc in results]
+            all_results = [self._de_mongoify(doc) for doc in results]
 
         if all_results:
             if len(all_results) > 1:
@@ -213,7 +200,8 @@ class MongoInterface(DBInterface):
             return None
 
     def delete(self, object_id):
-        """Deletes a specific document from the collection based on the objectId.
+        """Delete a specific document from the collection based on the objectId.
+
         Note that it first deletes all the gridFS files pointed to by ObjectIds
         within the document.
 
@@ -225,7 +213,7 @@ class MongoInterface(DBInterface):
         document_to_delete = self.collection.find_one({"_id": object_id})
         tensors_to_delete = document_to_delete['_tensor_ids']
         for tensor_id in tensors_to_delete:
-            self.fs.delete(tensor_id)
+            self.filesystem.delete(tensor_id)
         self.collection.remove(object_id)
 
     # Private methods ---------------------------------------------------------
@@ -244,8 +232,7 @@ class MongoInterface(DBInterface):
         return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
 
     def _binary_to_tensor(self, binary):
-        """Utility method to turn a a pickled tensor string back into
-        a tensor.
+        """Convert a pickled tensor string back into a tensor.
 
         Called by load_tensors.
 
@@ -254,31 +241,32 @@ class MongoInterface(DBInterface):
 
         Returns:
             Tensor of arbitrary dimension.
+
         """
         return pickle.loads(binary)
 
-    def _dot_to_vbar(self, document):
-        """Convert periods in dictionary keys to vertical bars (|)."""
+    def _replace(self, document, replace='.', replacement='__'):
+        """Replace `replace` in dictionary keys with `replacement`."""
         for (key, value) in document.items():
+            new_key = key.replace(replace, replacement)
             if isinstance(value, dict):
-                self._dot_to_vbar(value)
+                document[new_key] = self._replace(document.pop(key),
+                                                  replace=replace,
+                                                  replacement=replacement)
             else:
-                new_key = key.replace('.', '|')
                 document[new_key] = document.pop(key)
         return document
 
-    def _vbar_to_dot(self, document):
-        """Convert vertical bars (|) in dictionary keys to to periods."""
-        for (key, value) in document.items():
-            if isinstance(value, dict):
-                self._dot_to_vbar(value)
-            else:
-                new_key = key.replace('|', '.')
-                document[new_key] = document.pop(key)
-        return document
+    def _mongoify(self, document):
+        return self._replace(document)
+
+    def _de_mongoify(self, document):
+        return self._replace(document, replace='__', replacement='.')
 
     def _load_tensor(self, document):
-        """Utility method to recurse through a document and gather all ObjectIds and
+        """Replace ObjectIds with their corresponding gridFS data.
+
+        Utility method to recurse through a document and gather all ObjectIds and
         replace them one by one with their corresponding data from the gridFS collection.
 
         Skips any entries with a key of '_id'.
@@ -290,21 +278,24 @@ class MongoInterface(DBInterface):
 
         Returns:
             document: dictionary-like document, storable in mongodb.
+
         """
         for (key, value) in document.items():
             if isinstance(value, ObjectId) and key != '_id':
                 if key == '_Variable_data':
                     document = torch.autograd.Variable(
-                        self._binary_to_tensor(self.fs.get(value).read()))
+                        self._binary_to_tensor(self.filesystem.get(value).read()))
                 else:
                     document[key] = self._binary_to_tensor(
-                        self.fs.get(value).read())
+                        self.filesystem.get(value).read())
             elif isinstance(value, dict):
                 document[key] = self._load_tensor(value)
         return document
 
     def _save_tensors(self, document):
-        """Utility method to recurse through a document and replace all tensors
+        """Replace tensors with a reference to their location in gridFS.
+
+        Utility method to recurse through a document and replace all tensors
         and store them in the gridfs, replacing the actual tensors with references to the
         gridfs path.
 
@@ -317,6 +308,7 @@ class MongoInterface(DBInterface):
 
         Returns:
             document: dictionary like-document, storable in mongodb.
+
         """
         for (key, value) in document.items():
 
@@ -332,7 +324,7 @@ class MongoInterface(DBInterface):
                 match = False
                 for tensor_id in self._old_tensor_ids:
                     print('Checking if {} is already in the db... '.format(tensor_id))
-                    if data_MD5 == self.fs.get(tensor_id).md5:
+                    if data_MD5 == self.filesystem.get(tensor_id).md5:
                         match = True
                         # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
                         document[key] = tensor_id
@@ -340,7 +332,8 @@ class MongoInterface(DBInterface):
                         self._new_tensor_ids.append(tensor_id)
                 if not match:
                     # print('Tensor is not in the db. Inserting new gridfs file...')
-                    tensor_id = self.fs.put(self._tensor_to_binary(value))
+                    tensor_id = self.filesystem.put(
+                        self._tensor_to_binary(value))
                     document[key] = tensor_id
                     self._new_tensor_ids.append(tensor_id)
 

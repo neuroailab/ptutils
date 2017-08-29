@@ -1,15 +1,16 @@
 from __future__ import division, print_function, absolute_import
 
-# import h5py
-from dataloader import DataLoader
+import h5py
 
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset as dset
 
-from ptutils import base
+from .base import Base
+from .dataloader import DataLoader
 
-class DataProvider(base.DataProvider):
+
+class DataProvider(Base):
     """Interface for all DataProvider subclasses.
 
     The `DataProvider` class is responsible for parsing incoming requests from
@@ -32,21 +33,21 @@ class DataProvider(base.DataProvider):
     you are free to specify parameters such as batch size, data sampling strategies and the number of
     subprocesses to use for data loading.
     See http://pytorch.org/docs/data.html for more details.
+
     """
-    __name__ = 'dataprovider'
 
     def __init__(self, *args, **kwargs):
         super(DataProvider, self).__init__(*args, **kwargs)
 
     def provide(self):
         """Return a `torch.utils.data.dataloader` given an arbitrary data request."""
-        raise NotImplementedError()
+        raise NotImplementedError
 
     def __call__(self):
         return self.provide()
 
 
-class Dataset(base.DataSet, dset):
+class Dataset(Base, dset):
     """Interface for all Dataset subclasses.
 
     This class simply extends Pytorch's Dataset class to be able to load data
@@ -78,17 +79,20 @@ class Dataset(base.DataSet, dset):
         raise NotImplementedError()
 
 
-class DataReader(base.DataReader):
-    """Interface for DataReader subclasses (e.g. HDF5, TFRecords, etc.)
+class DataReader(Base):
+    """Interface for DataReader subclasses (e.g. HDF5, TFRecords, etc.).
+
     - Reads data of a specified format efficiently.
     - Exists completely independent of anything ptutils related.
         (Can use is just to read single data file, if desired.)
+
     """
+
     def __init__(self):
         super(DataReader, self).__init__()
 
     def read(self, *data_source):
-        """Loads data from `data_source` into a dictionary of array-like objects.
+        """Load data from `data_source` into a dictionary of array-like objects.
 
         The structure of the data dictionary should reflect intrinsic structure
         of the data source (e.g., if a dataset is partitioned into distinct sets
@@ -105,9 +109,11 @@ class DataReader(base.DataReader):
 
 
 class MNISTProvider(DataProvider):
-    def __init__(self):
+    def __init__(self, batch_size=100, n_threads=4):
         super(MNISTProvider, self).__init__()
         self.modes = ('train', 'test')
+        self.batch_size = batch_size
+        self.n_threads = n_threads
         for mode in self.modes:
             self[mode] = MNIST(root='../tests/resources/data/',
                                train=(mode == 'train'),
@@ -135,19 +141,21 @@ class CIFARProvider(DataProvider):
         self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
         for mode in self.modes:
             self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/resources/data/',
-                                                           train=(mode == 'train'),
+                                                           train=(
+                                                               mode == 'train'),
                                                            transform=transforms.ToTensor(),
                                                            download=True)
             self.datasets['CIFAR100'][mode] = dsets.CIFAR100(root='../tests/resources/data/',
-                                                             train=(mode == 'train'),
+                                                             train=(
+                                                                 mode == 'train'),
                                                              transform=transforms.ToTensor(),
                                                              download=True)
 
     def provide(self, dataset='CIFAR10', mode='train', batch_size=100):
-            return DataLoader(dataset=self.datasets[dataset][mode],
-                              batch_size=batch_size,
-                              pin_memory=True,
-                              shuffle=(mode == 'train'))
+        return DataLoader(dataset=self.datasets[dataset][mode],
+                          batch_size=batch_size,
+                          pin_memory=True,
+                          shuffle=(mode == 'train'))
 
 
 class ImageNetProvider(DataProvider):
