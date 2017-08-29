@@ -114,14 +114,11 @@ class TestBase(unittest.TestCase):
 
     def test_from_state(self):
         # Generate the state of a test base class.
-        # base = self.test_class()
-        # linear = torch.nn.Linear(2, 2)
-        # base.linear = linear
         base = self.setup_base()
         state = base.to_state()
 
         # Alter the state of the base class.
-        base.linear = torch.nn.Linear(1, 1)  #reinitialize linear layer
+        base.linear = torch.nn.Linear(1, 1)  # Reinitialize linear layer
         new_state = base.to_state()
 
         # The altered state should not be the same as the original.
@@ -130,24 +127,14 @@ class TestBase(unittest.TestCase):
         # Now, restore the base to its original state.
         base.from_state(state)
         restored = base.to_state()
+        # The restored state should be the same
         self.assertTrue(torch.equal(state.values()[0], restored.values()[0]))
 
     def test_from_state_param_mapping(self):
         base = self.setup_base()
         old_state = base.to_state()
 
-        # Test restore_var.
-        # old_base = self.test_class()
-
-        # Test 1x1 Linear module with data = [1]
-        # old_linear = torch.nn.Linear(1, 1)
-        # old_linear.bias.data = torch.ones(1, 1)
-        # old_linear.weight.data = torch.ones(1, 1)
-        # old_base.old_linear = old_linear
-
-        # old_state = base.to_state()
-
-        # A new base to receive old state
+        # A new base to receive old state.
         new_base = self.test_class()
         new_linear = torch.nn.Linear(1, 1)
         new_base.new_linear = new_linear
@@ -156,11 +143,12 @@ class TestBase(unittest.TestCase):
         param_mapping = {'linear.bias': 'new_linear.bias',
                          'linear.weight': 'new_linear.weight'}
 
+        # Map old params to new params
         new_base.from_state(old_state, param_mapping=param_mapping)
         new_state = new_base.to_state()
 
-        self.assertEqual(old_state.values()[0].numpy(),
-                         new_state.values()[0].numpy())
+        self.assertTrue(torch.equal(old_state.values()[0],
+                                     new_state.values()[0]))
 
     @classmethod
     def setup_base(cls):
