@@ -129,29 +129,7 @@ class Base(object):
             if name in restore_params:
                 own_state[param_mapping[name]].copy_(param)
 
-    def restore_state(self, state, restore_params):
-        """Filter state params for those to be restored.
-
-        Args:
-            state (dict): A state_dict.
-            restore_params (list[str] or regex): Specifies params to restore.
-
-        Returns:
-            TYPE: Description.
-
-        Raises:
-            TypeError: restore_params type is unsupported.
-
-        """
-        if restore_params is None:
-            restore_params = state.keys()
-        elif isinstance(restore_params, re._pattern_type):
-            return [name for name in state.keys()
-                    if restore_params.match(name)]
-        elif isinstance(restore_params, list):
-            return [name for name in state.keys()
-                    if name in restore_params]
-        raise TypeError('restore_params ({}) unsupported.'.format(type(restore_params)))
+        return self
 
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):

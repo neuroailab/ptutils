@@ -15,6 +15,7 @@ instance is running.
 from __future__ import division, print_function, absolute_import
 
 import os
+import re
 import sys
 import time
 import errno
@@ -70,7 +71,6 @@ class TestBase(unittest.TestCase):
         base = self.test_class.from_params(params)
         # self.log.info(base.to_params())
 
-    # @unittest.skip('skipping test_to_state')
     def test_to_state(self):
 
         # Base with torch.nn.Module child.
@@ -122,17 +122,45 @@ class TestBase(unittest.TestCase):
         new_state = base.to_state()
 
         # The altered state should not be the same as the original.
-        self.assertFalse(torch.equal(state.values()[0], new_state.values()[0]))
+        for old, new in zip(state.values(), new_state.values()):
+            self.assertFalse(torch.equal(old, new))
 
         # Now, restore the base to its original state.
         base.from_state(state)
         restored = base.to_state()
+
         # The restored state should be the same
-        self.assertTrue(torch.equal(state.values()[0], restored.values()[0]))
+        for s, r in zip(state.values(), restored.values()):
+            self.assertTrue(torch.equal(s, r))
+
+    def test_from_state_restore_params(self):
+        state = self.setup_base().to_state()
+
+        # Test None, which restore all params.
+        restore_params = None
+        s = self.setup_base().from_state(state, restore_params).to_state()
+        for old, new in zip(state.values(), s.values()):
+            self.assertTrue(torch.equal(old, new))
+
+        # Test list of strings.
+        restore_params = ['linear.weight']
+        s = self.setup_base().from_state(state, restore_params).to_state()
+        self.assertTrue(torch.equal(state['linear.weight'], s['linear.weight']))
+        self.assertFalse(torch.equal(state['linear.bias'], s['linear.bias']))
+
+        # Test regex.
+        restore_params = re.compile(r'linear.bias')
+        s = self.setup_base().from_state(state, restore_params).to_state()
+        self.assertTrue(torch.equal(state['linear.bias'], s['linear.bias']))
+        self.assertFalse(torch.equal(state['linear.weight'], s['linear.weight']))
+
+        # Test invalid type (should raise TypeError).
+        restore_params = {'invalid_key': 'invalid_value'}
+        with self.assertRaises(TypeError):
+            self.setup_base().from_state(state, restore_params).to_state()
 
     def test_from_state_param_mapping(self):
-        base = self.setup_base()
-        old_state = base.to_state()
+        old_state = self.setup_base().to_state()
 
         # A new base to receive old state.
         new_base = self.test_class()
@@ -147,16 +175,17 @@ class TestBase(unittest.TestCase):
         new_base.from_state(old_state, param_mapping=param_mapping)
         new_state = new_base.to_state()
 
-        self.assertTrue(torch.equal(old_state.values()[0],
-                                     new_state.values()[0]))
+        for old, new in zip(old_state.values(), new_state.values()):
+            self.assertTrue(torch.equal(old, new))
+
+    def test_from_state_restore_params_and_param_mapping(self):
+        pass
 
     @classmethod
-    def setup_base(cls):
+    def setup_base(cls, value=None):
         # Generate test base with 1x1 Linear module.
         base = cls.test_class()
         linear = torch.nn.Linear(1, 1)
-        linear.bias.data = torch.ones(1, 1)
-        linear.weight.data = torch.ones(1, 1)
         base.linear = linear
         return base
 
