@@ -118,7 +118,7 @@ class TestBase(unittest.TestCase):
         state = base.to_state()
 
         # Alter the state of the base class.
-        base.linear = torch.nn.Linear(1, 1)  # Reinitialize linear layer
+        base.linear = torch.nn.Linear(1, 1)  # Reinitialize linear layer.
         new_state = base.to_state()
 
         # The altered state should not be the same as the original.
@@ -129,14 +129,14 @@ class TestBase(unittest.TestCase):
         base.from_state(state)
         restored = base.to_state()
 
-        # The restored state should be the same
+        # The restored state should be the same.
         for s, r in zip(state.values(), restored.values()):
             self.assertTrue(torch.equal(s, r))
 
     def test_from_state_restore_params(self):
         state = self.setup_base().to_state()
 
-        # Test None, which restore all params.
+        # Test None, which should restore all params.
         restore_params = None
         s = self.setup_base().from_state(state, restore_params).to_state()
         for old, new in zip(state.values(), s.values()):
@@ -179,7 +179,29 @@ class TestBase(unittest.TestCase):
             self.assertTrue(torch.equal(old, new))
 
     def test_from_state_restore_params_and_param_mapping(self):
-        pass
+        base = self.test_class()
+        base.layer1 = torch.nn.Linear(2, 4)
+        base.layer2 = torch.nn.Linear(4, 8)
+        s = base.to_state()
+
+        new_base = self.test_class()
+        new_base.new_layer1 = torch.nn.Linear(2, 4)  # Change name of layer1.
+        new_base.layer2 = torch.nn.Linear(4, 8)
+
+        # Restore only layer1 and map to new names.
+        restore_params = re.compile(r'layer1')
+        param_mapping = {'layer1.bias': 'new_layer1.bias',
+                         'layer1.weight': 'new_layer1.weight'}
+        new_base.from_state(s, restore_params, param_mapping)
+        ns = new_base.to_state()
+
+        # layer1 has been restored under new_layer1.
+        self.assertTrue(torch.equal(s['layer1.bias'], ns['new_layer1.bias']))
+        self.assertTrue(torch.equal(s['layer1.weight'], ns['new_layer1.weight']))
+
+        # layer2 has been reinitialized.
+        self.assertFalse(torch.equal(s['layer2.bias'], ns['layer2.bias']))
+        self.assertFalse(torch.equal(s['layer2.weight'], ns['layer2.weight']))
 
     @classmethod
     def setup_base(cls, value=None):
