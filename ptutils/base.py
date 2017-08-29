@@ -99,7 +99,25 @@ class Base(object):
         return destination
 
     def from_state(self, state, restore_params=None, param_mapping=None):
-        """Restore base to state."""
+        """Restore base to the state specified by `state`.
+
+        Args:
+            state (dict): Names mapped to parameters.
+            restore_params (list[str] or regex, optional): Params to restore.
+                If a list, elements must be the names of params to restore.
+                If a regex, it must match all the param names to be restored.
+                If None, attempts to restore all parameters.
+                Defaults to None.
+            param_mapping (dict, optional): Maps old param names to new names.
+                Defaults to None.
+
+        Returns:
+            Base: self.
+
+        Raises:
+            TypeError: restore_params type unsupported.
+
+        """
         own_state = self.to_state()
 
         # Determine which params to restore from state.

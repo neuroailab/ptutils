@@ -50,7 +50,11 @@ class TestBase(unittest.TestCase):
         cls.test_class = base.Base
 
     def setUp(self):
+        """Set up class before each test method is executed."""
         pass
+
+    def tearDown(self):
+        """Tear Down is called after each test method is executed."""
 
     def test_init(self):
         """Test various combiniations of possible inits."""
@@ -62,17 +66,30 @@ class TestBase(unittest.TestCase):
         params = {'test_param_name': 'test_param_value',
                   'test_base_name': self.test_class()}
         base = self.test_class.from_params(params)
-        # self.log.info(base)
-        # self.log.info(base._params)
-        # self.log.info(base._bases)
+        # TODO: Add tests.
 
     def test_to_params(self):
         params = {'test_params': 'test'}
         base = self.test_class.from_params(params)
-        # self.log.info(base.to_params())
+        # TODO: Add tests.
 
     def test_to_state(self):
+        """Illustrate the behavior of the `Base.to_state` method.
 
+        The `to_state` method is an enhanced version of pytorch's native
+        `torch.nn.module.state_dict` that seeks to establish a namespace
+        with respect to that base object. One can therefore obtain a pseudo-
+        global namespace of a ptutils experiment via the `to_state` method
+        of the root Base class, which will be the `Runner` class in almost
+        every time.
+
+        Similar to pytorch, `to_state` returns a 'flat' (non-nested) ordered
+        dict that maps names to parameters. However, a key difference is that
+        a Base object needn't be an instance of a torch.nn.Module or even have
+        nn.Modules as immediate children for it to be able to produce a
+        `state_dict`-like dictionary.
+
+        """
         # Base with torch.nn.Module child.
         base = self.test_class()
         linear = torch.nn.Linear(2, 2)
@@ -113,6 +130,12 @@ class TestBase(unittest.TestCase):
              'child.child_linear.weight', 'child.child_linear.bias'])
 
     def test_from_state(self):
+        """Illustrate the basic behaviour of `from_state`.
+
+        The `from_state` method is `to_state`'s 'inverse' that restores the
+        params of a Base object.
+
+        """
         # Generate the state of a test base class.
         base = self.setup_base()
         state = base.to_state()
@@ -121,7 +144,7 @@ class TestBase(unittest.TestCase):
         base.linear = torch.nn.Linear(1, 1)  # Reinitialize linear layer.
         new_state = base.to_state()
 
-        # The altered state should not be the same as the original.
+        # The altered state should _not_ be the same as the original.
         for old, new in zip(state.values(), new_state.values()):
             self.assertFalse(torch.equal(old, new))
 
@@ -129,11 +152,12 @@ class TestBase(unittest.TestCase):
         base.from_state(state)
         restored = base.to_state()
 
-        # The restored state should be the same.
+        # The restored state should now be the same.
         for s, r in zip(state.values(), restored.values()):
             self.assertTrue(torch.equal(s, r))
 
     def test_from_state_restore_params(self):
+        """Demonstate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
         # Test None, which should restore all params.
@@ -160,6 +184,7 @@ class TestBase(unittest.TestCase):
             self.setup_base().from_state(state, restore_params).to_state()
 
     def test_from_state_param_mapping(self):
+        """Demonstrate parameter mapping."""
         old_state = self.setup_base().to_state()
 
         # A new base to receive old state.
@@ -179,6 +204,7 @@ class TestBase(unittest.TestCase):
             self.assertTrue(torch.equal(old, new))
 
     def test_from_state_restore_params_and_param_mapping(self):
+        """Demonstrate simultaneous param restoring and mapping."""
         base = self.test_class()
         base.layer1 = torch.nn.Linear(2, 4)
         base.layer2 = torch.nn.Linear(4, 8)
