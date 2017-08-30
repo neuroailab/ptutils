@@ -385,7 +385,16 @@ class TestMongoInterface(Test):
         self.assertIsInstance(r[0]['tensor'], ObjectId)
 
     def test_save_state(self):
-        pass
+        b = base.Base()
+        linear = torch.nn.Linear(2, 2)
+        b.linear = linear
+        state = b.to_state()
+        doc = {'exp_id': 'test_save_state', 'state': state}
+        self.dbinterface.save(doc)
+        r = self.conn[self.database_name][self.collection_name].find(
+            {'exp_id': 'test_save_state'})
+        for param in r[0]['state'].values():
+            self.assertIsInstance(param, ObjectId)
 
     def test_load(self):
         doc = {'exp_id': 'test_load', 'step': 0}
@@ -421,7 +430,13 @@ class TestMongoInterface(Test):
             self.assertTrue(torch.equal(state[name], restored_state[name]))
 
     def test_delete(self):
-        pass
+        doc = {'exp_id': 'test_delete', 'step': 0}
+        object_id = self.dbinterface.save(doc)
+        self.log.info(object_id)
+        self.dbinterface.delete(object_id[0])
+        r = self.conn[self.database_name][self.collection_name].find(
+            {'exp_id': 'test_delete'})
+        self.assertEqual(r.count(), 0)
 
 
 @unittest.skip('skip')
