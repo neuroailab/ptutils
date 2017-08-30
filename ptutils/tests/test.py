@@ -23,12 +23,16 @@ import shutil
 import logging
 import pymongo
 import unittest
+import numpy as np
+from bson.objectid import ObjectId
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
 
 from ptutils import base, data, model, database
+
+LOG_LEVEL = 'DEBUG'
 
 
 def setUpModule():
@@ -55,6 +59,7 @@ class TestBase(unittest.TestCase):
 
     def tearDown(self):
         """Tear Down is called after each test method is executed."""
+        pass
 
     def test_init(self):
         """Test various combiniations of possible inits."""
@@ -169,14 +174,16 @@ class TestBase(unittest.TestCase):
         # Test list of strings.
         restore_params = ['linear.weight']
         s = self.setup_base().from_state(state, restore_params).to_state()
-        self.assertTrue(torch.equal(state['linear.weight'], s['linear.weight']))
+        self.assertTrue(torch.equal(
+            state['linear.weight'], s['linear.weight']))
         self.assertFalse(torch.equal(state['linear.bias'], s['linear.bias']))
 
         # Test regex.
         restore_params = re.compile(r'linear.bias')
         s = self.setup_base().from_state(state, restore_params).to_state()
         self.assertTrue(torch.equal(state['linear.bias'], s['linear.bias']))
-        self.assertFalse(torch.equal(state['linear.weight'], s['linear.weight']))
+        self.assertFalse(torch.equal(
+            state['linear.weight'], s['linear.weight']))
 
         # Test invalid type (should raise TypeError).
         restore_params = {'invalid_key': 'invalid_value'}
@@ -223,7 +230,8 @@ class TestBase(unittest.TestCase):
 
         # layer1 has been restored under the new name `new_layer1`.
         self.assertTrue(torch.equal(s['layer1.bias'], ns['new_layer1.bias']))
-        self.assertTrue(torch.equal(s['layer1.weight'], ns['new_layer1.weight']))
+        self.assertTrue(torch.equal(
+            s['layer1.weight'], ns['new_layer1.weight']))
 
         # layer2 has been reinitialized.
         self.assertFalse(torch.equal(s['layer2.bias'], ns['layer2.bias']))
@@ -240,11 +248,11 @@ class TestBase(unittest.TestCase):
     @classmethod
     def setup_log(cls):
         cls.log = logging.getLogger(':'.join([__name__, cls.__name__]))
-        cls.log.setLevel('DEBUG')
+        cls.log.setLevel(LOG_LEVEL)
 
 
-@unittest.skip('Skipping TestRunner')
-class TestRunner(unittest.TestCase):
+class Test(unittest.TestCase):
+    """Test class with convenient database access."""
 
     # Port on which the MongoDB instance to be used by tests needs to be running.
     port = 27017
@@ -263,9 +271,6 @@ class TestRunner(unittest.TestCase):
         cls.setup_log()
         cls.setup_conn()
 
-        # Test primary Runner class.
-        cls.test_class = base.Runner
-
     @classmethod
     def tearDownClass(cls):
         """Tear down class after all test methods have run."""
@@ -275,6 +280,162 @@ class TestRunner(unittest.TestCase):
         # Close primary MongoDB connection.
         cls.conn.close()
 
+    @classmethod
+    def setup_log(cls):
+        cls.log = logging.getLogger(':'.join([__name__, cls.__name__]))
+        cls.log.setLevel(LOG_LEVEL)
+
+    @classmethod
+    def setup_conn(cls):
+        cls.conn = pymongo.MongoClient(host=cls.host, port=cls.port)
+
+    @classmethod
+    def remove_checkpoint(cls, checkpoint):
+        """Remove a tf.train.Saver checkpoint."""
+        cls.log.info('Removing checkpoint: {}'.format(checkpoint))
+        # TODO: remove ckpt
+        cls.log.info('Checkpoint successfully removed.')
+        raise NotImplementedError
+
+    @classmethod
+    def remove_directory(cls, directory):
+        """Remove a directory."""
+        try:
+            cls.log.info('Removing directory: {}'.format(directory))
+            shutil.rmtree(directory)
+        except OSError:
+            cls.log.info('Directory does not exist.')
+        else:
+            cls.log.info('Directory successfully removed.')
+
+    @classmethod
+    def remove_database(cls, database_name):
+        """Remove a MonogoDB database."""
+        cls.log.info('Removing database: {}'.format(database_name))
+        cls.conn.drop_database(database_name)
+        cls.log.info('Database successfully removed.')
+
+    @classmethod
+    def remove_collection(cls, collection_name):
+        """Remove a MonogoDB collection."""
+        cls.log.info('Removing collection: {}'.format(collection_name))
+        cls.conn[cls.database_name][collection_name].drop()
+        cls.log.info('Collection successfully removed.')
+
+    @classmethod
+    def remove_document(cls, document):
+        raise NotImplementedError
+
+    @staticmethod
+    def makedirs(dir):
+        try:
+            os.makedirs(dir)
+        except OSError as e:
+            if e.errno != errno.EEXIST:
+                raise
+
+
+class TestMongoInterface(Test):
+
+    def setUp(self):
+        self.dbinterface = database.MongoInterface(self.database_name,
+                                                   self.collection_name)
+
+    def tearDown(self):
+        del self.dbinterface
+
+    def test_to_params(self):
+        self.assertDictContainsSubset(
+            {'host': self.host,
+             'port': self.port,
+             'database_name': self.database_name,
+             'collection_name': self.collection_name},
+            self.dbinterface.to_params())
+
+    def test_from_params(self):
+        params = {'host': self.host,
+                  'port': self.port,
+                  'database_name': self.database_name,
+                  'collection_name': self.collection_name}
+        dbinterface = database.MongoInterface.from_params(**params)
+        params = self.dbinterface.to_params()
+        dbinterface = database.MongoInterface.from_params(**params)
+
+    def test_save(self):
+        doc = {'exp_id': 'test_save', 'step': 0}
+        self.dbinterface.save(doc)
+        r = self.conn[self.database_name][self.collection_name].find(
+            {'exp_id': 'test_save'})
+        self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r[0])
+
+    def test_save_numpy_array(self):
+        array = np.array([1, 2, 3])
+        doc = {'exp_id': 'test_save_numpy_array', 'array': array}
+        self.dbinterface.save(doc)
+        r = self.conn[self.database_name][self.collection_name].find(
+            {'exp_id': 'test_save_numpy_array'})
+        self.assertIsInstance(r[0]['array'], ObjectId)
+
+    def test_save_torch_tensor(self):
+        tensor = torch.Tensor([1, 2, 3])
+        doc = {'exp_id': 'test_save_torch_tensor', 'tensor': tensor}
+        self.dbinterface.save(doc)
+        r = self.conn[self.database_name][self.collection_name].find(
+            {'exp_id': 'test_save_torch_tensor'})
+        self.assertIsInstance(r[0]['tensor'], ObjectId)
+
+    def test_save_state(self):
+        pass
+
+    def test_load(self):
+        doc = {'exp_id': 'test_load', 'step': 0}
+        self.dbinterface.save(doc)
+        r = self.dbinterface.load({'exp_id': 'test_load'})
+        self.assertDictContainsSubset({'exp_id': 'test_load', 'step': 0}, r)
+
+    def test_load_numpy_array(self):
+        array = np.array([1, 2, 3])
+        doc = {'exp_id': 'test_load_numpy_array', 'array': array}
+        self.dbinterface.save(doc)
+        r = self.dbinterface.load({'exp_id': 'test_load_numpy_array'})
+        self.assertTrue(np.array_equal(doc['array'], r['array']))
+
+    def test_load_torch_tensor(self):
+        tensor = torch.Tensor([1, 2, 3])
+        doc = {'exp_id': 'test_load_torch_tensor', 'tensor': tensor}
+        self.dbinterface.save(doc)
+        r = self.dbinterface.load({'exp_id': 'test_load_torch_tensor'})
+        self.assertTrue(torch.equal(doc['tensor'], r['tensor']))
+
+    def test_load_state(self):
+        b = base.Base()
+        linear = torch.nn.Linear(2, 2)
+        b.linear = linear
+        state = b.to_state()
+        doc = {'exp_id': 'test_load_state', 'state': state}
+        self.dbinterface.save(doc)
+        r = self.dbinterface.load({'exp_id': 'test_load_state'})
+        restored_state = r['state']
+        self.assertItemsEqual(state.keys(), restored_state.keys())
+        for name in state:
+            self.assertTrue(torch.equal(state[name], restored_state[name]))
+
+    def test_delete(self):
+        pass
+
+
+@unittest.skip('skip')
+class TestRunner(Test):
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up class once before any test methods are run."""
+        cls.setup_log()
+        cls.setup_conn()
+
+        # Test primary Runner class.
+        cls.test_class = base.Runner
+
     def setUp(self):
         """Set up class before _each_ test method is executed."""
         # self.setup_cache()
@@ -283,6 +444,12 @@ class TestRunner(unittest.TestCase):
     def tearDown(self):
         """Tear Down is called after _each_ test method is executed."""
         pass
+
+    def test_init(self):
+        """Test various combiniations of possible inits."""
+        # Test empty base class
+        runner = self.test_class()
+        self.assertEqual(runner.name, 'runner')
 
     @unittest.skip('skipping')
     def test_training(self):
@@ -337,26 +504,6 @@ class TestRunner(unittest.TestCase):
 
         runner.train_from_params()
 
-    @classmethod
-    def setup_log(cls):
-        cls.log = logging.getLogger(':'.join([__name__, cls.__name__]))
-        cls.log.setLevel('DEBUG')
-
-    @classmethod
-    def setup_conn(cls):
-        cls.conn = pymongo.MongoClient(host=cls.host, port=cls.port)
-
-    @classmethod
-    def setup_cache(cls):
-        cls.cache_dir = os.path.join(cls.cache_dir,
-                                     '%s:%d' % (cls.host, cls.port),
-                                     cls.database_name,
-                                     cls.collection_name,
-                                     cls.EXP_ID)
-
-        cls.makedirs(cls.cache_dir)
-        cls.save_path = os.path.join(cls.cache_dir, 'checkpoint')
-
     def setup_params(self, exp_id=None):
         """Create params that can be used for training."""
         model_params = {'func': model.MNIST,
@@ -399,51 +546,6 @@ class TestRunner(unittest.TestCase):
             'dataprovider_params': dataprovider_params}
 
         return params
-
-    @classmethod
-    def remove_checkpoint(cls, checkpoint):
-        """Remove a tf.train.Saver checkpoint."""
-        cls.log.info('Removing checkpoint: {}'.format(checkpoint))
-        # TODO: remove ckpt
-        cls.log.info('Checkpoint successfully removed.')
-        raise NotImplementedError
-
-    @classmethod
-    def remove_directory(cls, directory):
-        """Remove a directory."""
-        try:
-            cls.log.info('Removing directory: {}'.format(directory))
-            shutil.rmtree(directory)
-        except OSError:
-            cls.log.info('Directory does not exist.')
-        else:
-            cls.log.info('Directory successfully removed.')
-
-    @classmethod
-    def remove_database(cls, database_name):
-        """Remove a MonogoDB database."""
-        cls.log.info('Removing database: {}'.format(database_name))
-        cls.conn.drop_database(database_name)
-        cls.log.info('Database successfully removed.')
-
-    @classmethod
-    def remove_collection(cls, collection_name):
-        """Remove a MonogoDB collection."""
-        cls.log.info('Removing collection: {}'.format(collection_name))
-        cls.conn[cls.database_name][collection_name].drop()
-        cls.log.info('Collection successfully removed.')
-
-    @classmethod
-    def remove_document(cls, document):
-        raise NotImplementedError
-
-    @staticmethod
-    def makedirs(dir):
-        try:
-            os.makedirs(dir)
-        except OSError as e:
-            if e.errno != errno.EEXIST:
-                raise
 
     @staticmethod
     def asserts_for_record(r, params, train=False):
