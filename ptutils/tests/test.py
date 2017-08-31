@@ -262,7 +262,22 @@ class TestBase(unittest.TestCase):
         self.assertFalse(torch.equal(s['layer2.bias'], ns['layer2.bias']))
         self.assertFalse(torch.equal(s['layer2.weight'], ns['layer2.weight']))
 
-    # Test apply --------------------------------------------------------------Siri
+    def test_from_state_invalid_structure(self):
+
+        # Incompatiible names
+        base = self.test_class()
+        invalid_state = self.setup_base().to_state()
+        with self.assertRaises(KeyError):
+            base.from_state(invalid_state)
+
+        # Incompatiible shapes
+        base = self.test_class()
+        base.linear = torch.nn.Linear(2, 2)
+        invalid_state = self.setup_base().to_state()
+        with self.assertRaises(RuntimeError):
+            base.from_state(invalid_state)
+
+    # Test apply ---------------------------------------------------------------
 
     @unittest.skip('Incomplete')
     def test_apply(self):
@@ -311,9 +326,96 @@ class TestBase(unittest.TestCase):
             ['linear.weight', 'linear.bias',
              'child.child_linear.weight', 'child.child_linear.bias'])
 
+    # Test cuda ----------------------------------------------------------------
+
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda(self):
-        pass
+        base = self.setup_base()
+        base.cuda()
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
+    def test_cuda_with_base_child_with_module_child(self):
+        """Base with Base child with torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        base.child = child
+        base.devices = [0, 1]
+        base.child.linear = torch.nn.Linear(2, 2)
+        base.cuda()
+
+        self.assertTrue(base.use_cuda)
+        self.assertTrue(base.child.use_cuda)
+        self.assertEqual(base.devices, [0, 1])
+        self.assertEqual(base.child.devices, [0, 1])
+
+
+        base = self.test_class()
+        child = self.test_class()
+        base.child = child
+        base.devices = [0, 1]
+        base.child.devices = [2, 3]
+        base.child.linear = torch.nn.Linear(2, 2)
+        base.cuda()
+
+        self.assertEqual(base.devices, [0, 1])
+        self.assertEqual(base.child.devices, [2, 3])
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
+    def test_cuda_with_base_and_module_child(self):
+        """Base with Base child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.linear = linear
+        base.cuda()
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
+    def test_cuda_with_module_child_and_base_child_with_module_child(self):
+        """Base child with torch.nn.Module child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        child_linear = torch.nn.Linear(4, 4)
+        base.child = child
+        base.linear = linear
+        base.child.child_linear = child_linear
+        base.cuda()
+
+    # Test cpu -----------------------------------------------------------------
+
+    def test_cpu(self):
+        base = self.setup_base()
+        base.cpu()
+
+    def test_cpu_with_base_child_with_module_child(self):
+        """Base with Base child with torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.child.linear = linear
+        base.cpu()
+
+    def test_cpu_with_base_and_module_child(self):
+        """Base with Base child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.linear = linear
+        base.cpu()
+
+    def test_cpu_with_module_child_and_base_child_with_module_child(self):
+        """Base child with torch.nn.Module child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        child_linear = torch.nn.Linear(4, 4)
+        base.child = child
+        base.linear = linear
+        base.child.child_linear = child_linear
+        base.cpu()
 
     @classmethod
     def setup_base(cls, value=None):
@@ -333,7 +435,7 @@ class Test(unittest.TestCase):
     """Test class with convenient database access."""
 
     # Port on which the MongoDB instance to be used by tests needs to be running.
-    port = 27017
+    port = 29101
     # Host on which the MongoDB instance to be used by tests needs to be running.
     host = 'localhost'
     # Name of the mongodb database where results will be stored by tests.
@@ -413,6 +515,7 @@ class Test(unittest.TestCase):
                 raise
 
 
+@unittest.skip('skip')
 class TestMongoInterface(Test):
 
     def setUp(self):

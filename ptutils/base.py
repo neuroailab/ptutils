@@ -39,8 +39,8 @@ class Base(object):
         self._bases = collections.OrderedDict()
         self._params = collections.OrderedDict()
 
-        self._devices = None
-        self._use_cuda = False
+        self.devices = None
+        self.use_cuda = False
 
         self.name = kwargs.get('name', type(self).__name__.lower())
 
@@ -177,18 +177,33 @@ class Base(object):
         fn(self)
         return self
 
-    def cuda(self, device_id=None):
+    def cuda(self, devices=None):
         """Move all Bases to the GPU.
 
         Args:
-            device_id (int, optional): if specified, all parameters will be
+            devices(list, optional): if specified, all parameters will be
                 copied to that device
+
         """
-        return self.apply(lambda t: t.cuda(device_id))
+        self.use_cuda = True
+        if self.devices is None:
+            self.devices = devices
+
+        for base in self._bases.values():
+            base.use_cuda = True
+            if isinstance(base, torch.nn.Module):
+                base.cuda()
+            else:
+                base.cuda(devices=self.devices)
+            print('Calling cuda on {} with devices {}\n'.format(base, self.devices))
 
     def cpu(self):
         """Move all Bases to the CPU."""
-        return self._apply(lambda t: t.cpu())
+        self.use_cuda = False
+        self.devices = None
+        for base in self._bases.values():
+            base.cpu()
+            print('Calling cpu on {} \n'.format(base))
 
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):
