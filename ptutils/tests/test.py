@@ -67,16 +67,22 @@ class TestBase(unittest.TestCase):
         base = self.test_class()
         self.assertEqual(base.name, 'base')
 
+    # Test to_params ----------------------------------------------------------
+
+    def test_to_params(self):
+        params = {'test_params': 'test'}
+        base = self.test_class.from_params(params)
+        # TODO: Add tests.
+
+    # Test from_params --------------------------------------------------------
+
     def test_from_params(self):
         params = {'test_param_name': 'test_param_value',
                   'test_base_name': self.test_class()}
         base = self.test_class.from_params(params)
         # TODO: Add tests.
 
-    def test_to_params(self):
-        params = {'test_params': 'test'}
-        base = self.test_class.from_params(params)
-        # TODO: Add tests.
+    # Test to_state -----------------------------------------------------------
 
     def test_to_state(self):
         """Illustrate the behavior of the `Base.to_state` method.
@@ -103,7 +109,8 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.to_state().keys(),
                          ['linear.weight', 'linear.bias'])
 
-        # Base with Base child with torch.nn.Module child.
+    def test_to_state_with_base_child_with_module_child(self):
+        """Base with Base child with torch.nn.Module child."""
         base = self.test_class()
         child = self.test_class()
         linear = torch.nn.Linear(2, 2)
@@ -112,7 +119,8 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.to_state().keys(),
                          ['child.linear.weight', 'child.linear.bias'])
 
-        # Base with Base child and torch.nn.Module child.
+    def test_to_state_with_base_and_module_child(self):
+        """Base with Base child and torch.nn.Module child."""
         base = self.test_class()
         child = self.test_class()
         linear = torch.nn.Linear(2, 2)
@@ -122,7 +130,8 @@ class TestBase(unittest.TestCase):
             base.to_state().keys(),
             ['linear.weight', 'linear.bias'])
 
-        # Base child with torch.nn.Module child and torch.nn.Module child.
+    def test_to_state_with_module_child_and_base_child_with_module_child(self):
+        """Base child with torch.nn.Module child and torch.nn.Module child."""
         base = self.test_class()
         child = self.test_class()
         linear = torch.nn.Linear(2, 2)
@@ -134,6 +143,8 @@ class TestBase(unittest.TestCase):
             base.to_state().keys(),
             ['linear.weight', 'linear.bias',
              'child.child_linear.weight', 'child.child_linear.bias'])
+
+    # Test from_state ---------------------------------------------------------
 
     def test_from_state(self):
         """Illustrate the basic behaviour of `from_state`.
@@ -162,7 +173,7 @@ class TestBase(unittest.TestCase):
         for s, r in zip(state.values(), restored.values()):
             self.assertTrue(torch.equal(s, r))
 
-    def test_from_state_restore_params(self):
+    def test_from_state_restore_params_None(self):
         """Demonstate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
@@ -172,6 +183,10 @@ class TestBase(unittest.TestCase):
         for old, new in zip(state.values(), s.values()):
             self.assertTrue(torch.equal(old, new))
 
+    def test_from_state_restore_params_list_of_strings(self):
+        """Demonstate how to selectively restore parameters."""
+        state = self.setup_base().to_state()
+
         # Test list of strings.
         restore_params = ['linear.weight']
         s = self.setup_base().from_state(state, restore_params).to_state()
@@ -179,12 +194,20 @@ class TestBase(unittest.TestCase):
             state['linear.weight'], s['linear.weight']))
         self.assertFalse(torch.equal(state['linear.bias'], s['linear.bias']))
 
+    def test_from_state_restore_params_regex(self):
+        """Demonstate how to selectively restore parameters."""
+        state = self.setup_base().to_state()
+
         # Test regex.
         restore_params = re.compile(r'linear.bias')
         s = self.setup_base().from_state(state, restore_params).to_state()
         self.assertTrue(torch.equal(state['linear.bias'], s['linear.bias']))
         self.assertFalse(torch.equal(
             state['linear.weight'], s['linear.weight']))
+
+    def test_from_state_restore_params_invalid(self):
+        """Demonstate how to selectively restore parameters."""
+        state = self.setup_base().to_state()
 
         # Test invalid type (should raise TypeError).
         restore_params = {'invalid_key': 'invalid_value'}
@@ -218,6 +241,7 @@ class TestBase(unittest.TestCase):
         base.layer2 = torch.nn.Linear(4, 8)
         s = base.to_state()
 
+        # New base with different structure/names.
         new_base = self.test_class()
         new_base.new_layer1 = torch.nn.Linear(2, 4)  # Change name of layer1.
         new_base.layer2 = torch.nn.Linear(4, 8)      # layer2 name remains.
@@ -237,6 +261,59 @@ class TestBase(unittest.TestCase):
         # layer2 has been reinitialized.
         self.assertFalse(torch.equal(s['layer2.bias'], ns['layer2.bias']))
         self.assertFalse(torch.equal(s['layer2.weight'], ns['layer2.weight']))
+
+    # Test apply --------------------------------------------------------------Siri
+
+    @unittest.skip('Incomplete')
+    def test_apply(self):
+        """Test apply."""
+        base = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.linear = linear
+        self.assertEqual(base.to_state().keys(),
+                         ['linear.weight', 'linear.bias'])
+
+    @unittest.skip('Incomplete')
+    def test_apply_with_base_child_with_module_child(self):
+        """Base with Base child with torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.child.linear = linear
+        self.assertEqual(base.to_state().keys(),
+                         ['child.linear.weight', 'child.linear.bias'])
+
+    @unittest.skip('Incomplete')
+    def test_apply_with_base_and_module_child(self):
+        """Base with Base child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.linear = linear
+        self.assertItemsEqual(
+            base.to_state().keys(),
+            ['linear.weight', 'linear.bias'])
+
+    @unittest.skip('Incomplete')
+    def test_apply_with_module_child_and_base_child_with_module_child(self):
+        """Base child with torch.nn.Module child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        child_linear = torch.nn.Linear(4, 4)
+        base.child = child
+        base.linear = linear
+        base.child.child_linear = child_linear
+        self.assertItemsEqual(
+            base.to_state().keys(),
+            ['linear.weight', 'linear.bias',
+             'child.child_linear.weight', 'child.child_linear.bias'])
+
+    @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
+    def test_cuda(self):
+        pass
 
     @classmethod
     def setup_base(cls, value=None):
@@ -433,7 +510,6 @@ class TestMongoInterface(Test):
     def test_delete(self):
         doc = {'exp_id': 'test_delete', 'step': 0}
         object_id = self.dbinterface.save(doc)
-        self.log.info(object_id)
         self.dbinterface.delete(object_id[0])
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_delete'})
@@ -553,16 +629,13 @@ class TestRunner(Test):
         train_params = {'num_steps': 500}
         validation_params = {}
 
-
-
-
         params = {
+            'use_cuda': True,
+            'devices': [0, 1, 2, 3],
             'save_params': save_params,
             'load_params': load_params,
             'model_params': model_params,
             'train_params': train_params,
-            'loss_params': loss_params,
-            'optimizer_params': optimizer_params,
             'dbinterface_params': dbinterface_params,
             'dataprovider_params': dataprovider_params}
 

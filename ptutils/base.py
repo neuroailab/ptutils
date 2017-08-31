@@ -39,6 +39,9 @@ class Base(object):
         self._bases = collections.OrderedDict()
         self._params = collections.OrderedDict()
 
+        self._devices = None
+        self._use_cuda = False
+
         self.name = kwargs.get('name', type(self).__name__.lower())
 
         for i, arg in enumerate(args):
@@ -157,12 +160,42 @@ class Base(object):
 
         return self
 
+    def apply(self, fn):
+        """Apply``fn`` recursively to every subbase as well as self.
+
+        Typical use applying dataparallel to all modules.
+
+        Args:
+            fn (function or static method): Function to apply to all subbases.
+
+        Returns:
+            Base: self
+
+        """
+        for base in self._bases.values():
+            base.apply(fn)
+        fn(self)
+        return self
+
+    def cuda(self, device_id=None):
+        """Move all Bases to the GPU.
+
+        Args:
+            device_id (int, optional): if specified, all parameters will be
+                copied to that device
+        """
+        return self.apply(lambda t: t.cuda(device_id))
+
+    def cpu(self):
+        """Move all Bases to the CPU."""
+        return self._apply(lambda t: t.cpu())
+
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):
             self._bases[name] = value
         else:
             # Allow this , just restrict for _params.
-            if not name.startswith('_'):
+            if name not in ['_params', '_bases']:
                 self._params[name] = value
         object.__setattr__(self, name, value)
 
