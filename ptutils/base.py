@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from error import StepError
+from error import StepError, ExpIdError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -203,7 +203,14 @@ class Base(object):
         self.devices = None
         for base in self._bases.values():
             base.cpu()
-            print('Calling cpu on {} \n'.format(base))
+
+    def cast(self, obj):
+
+        if isinstance(obj, (list, tuple)):
+            return type(obj)([self.cast(o) for o in obj])
+        else:
+            obj = obj.cuda() if self.use_cuda else obj
+            return obj.type(self.dtype) if dtype is None else obj.type(dtype)
 
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):
@@ -253,18 +260,17 @@ class Runner(Base):
                                      **kwargs)
 
         # Core
-        self._model = None
-        self._dbinterface = None
-        self._dataprovider = None
-
-        self._exp_id = None
-        self._global_step = 0
-        self._state_dict = collections.OrderedDict()
+        self.model = None
+        self.dbinterface = None
+        self.dataprovider = None
 
         # Params
-        self._save_params = None
-        self._load_params = None
-        self._train_params = None
+        self.save_params = None
+        self.load_params = None
+        self.train_params = None
+
+        self.exp_id = None
+        self.global_step = 0
 
     def step(self, prev_output):
         """Define a single step of an experiment.
@@ -293,7 +299,6 @@ class Runner(Base):
         for step in range(self.num_steps):
             model_output = self.step(model_output)
 
-
             if self.global_step % self.metric_freq == 0:
                 # Save stuff
                 self.dbinterface.save(output)
@@ -309,19 +314,15 @@ class Runner(Base):
 
         """
         # Enforce that all Runners have an exp_id
-        assert self.exp_id is not None, 'Must provide and exp_id'
+        if self.exp_id is None:
+                raise ExpIdError('Cannot run an experiment without an exp_id')
 
         # Restore previous run.
         if self.load_params['do_restore']:
             self.load_run()
 
-        # Do any initialization needed here
-        # initial_input = self.dataprovider.get_initial_input()
-
         # Start the main training loop.
         self.train()
-
-
 
     @classmethod
     def from_params(cls, **params):
@@ -365,24 +366,26 @@ class Runner(Base):
 
     @property
     def exp_id(self):
-        return self._exp_id
+        return self._params['exp_id']
 
     @exp_id.setter
     def exp_id(self, value):
-        self._exp_id = value
+        self._params['exp_id'] = value
 
     @property
     def global_step(self):
-        return self._global_step
+        return self._params['global_step']
 
     @global_step.setter
     def global_step(self, value):
-        if value <= self._global_step:
-            raise StepError('The global step should have been incremented.')
-        elif value > (self._global_step + 1):
+        # if value <= self._params['global_step']:
+            # raise StepError('The global step should have been incremented.')
+        if value > (self._params['global_step'] + 1):
             raise StepError('The global step can only be incremented by one.')
+        elif value < 0:
+            raise StepError('The global step cannot be negative.')
         else:
-            self._global_step = value
+            self._params['global_step'] = value
 
     def load_run(self):
         params = self.dbinterface.load({'exp_id': self.exp_id})
@@ -406,21 +409,30 @@ class Runner(Base):
 
     @property
     def save_params(self):
-        """Get the model."""
+        """Get the save parameters."""
         return self._params['save_params']
 
     @save_params.setter
     def save_params(self, value):
-        self._params['save_param'] = value
+        self._params['save_params'] = value
 
     @property
     def load_params(self):
-        """Get the model."""
+        """Get the load parameters."""
         return self._params['load_params']
 
     @load_params.setter
     def load_params(self, value):
-        self._params['load_param'] = value
+        self._params['load_params'] = value
+
+    @property
+    def train_params(self):
+        """Get the train parameters."""
+        return self._params['train_params']
+
+    @train_params.setter
+    def train_params(self, value):
+        self._params['train_params'] = value
 
     @property
     def optimizer(self):
