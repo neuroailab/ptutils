@@ -101,12 +101,11 @@ class Model(Base):
         self._bases['optimizer'] = value
 
 
-class MNIST(nn.Module):
+class MNIST(nn.Module, Base):
 
-    def __init__(self, devices=1):
+    def __init__(self):
         super(MNIST, self).__init__()
 
-        self.devices = devices
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
             nn.BatchNorm2d(16),
@@ -125,6 +124,16 @@ class MNIST(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.fc(out)
         return out
+
+class ConvMNIST(nn.Module, Base):
+    pass
+
+
+class FcMNIST(nn.Module, Base):
+
+    def __init__(self):
+        super(FcMNIST, self).__init__()
+
 
 
 class DynamicNet(nn.Module):

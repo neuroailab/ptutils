@@ -94,6 +94,7 @@ class TestBase(unittest.TestCase):
         nn.Modules as immediate children for it to be able to produce a
         `state_dict`-like dictionary.
 
+        Caveat:
         """
         # Base with torch.nn.Module child.
         base = self.test_class()
@@ -190,8 +191,8 @@ class TestBase(unittest.TestCase):
         with self.assertRaises(TypeError):
             self.setup_base().from_state(state, restore_params).to_state()
 
-    def test_from_state_param_mapping(self):
-        """Demonstrate parameter mapping."""
+    def test_from_state_restore_mapping(self):
+        """Demonstrate restore parameter mapping."""
         old_state = self.setup_base().to_state()
 
         # A new base to receive old state.
@@ -200,17 +201,17 @@ class TestBase(unittest.TestCase):
         new_base.new_linear = new_linear
 
         # Define a param mapping from old params to new params.
-        param_mapping = {'linear.bias': 'new_linear.bias',
-                         'linear.weight': 'new_linear.weight'}
+        restore_mapping = {'linear.bias': 'new_linear.bias',
+                           'linear.weight': 'new_linear.weight'}
 
         # Map old params to new params
-        new_base.from_state(old_state, param_mapping=param_mapping)
+        new_base.from_state(old_state, restore_mapping=restore_mapping)
         new_state = new_base.to_state()
 
         for old, new in zip(old_state.values(), new_state.values()):
             self.assertTrue(torch.equal(old, new))
 
-    def test_from_state_restore_params_and_param_mapping(self):
+    def test_from_state_restore_params_and_restore_mapping(self):
         """Demonstrate simultaneous param restoring and mapping."""
         base = self.test_class()
         base.layer1 = torch.nn.Linear(2, 4)
@@ -223,9 +224,9 @@ class TestBase(unittest.TestCase):
 
         # Restore only layer1 params and map to new names.
         restore_params = re.compile(r'layer1')
-        param_mapping = {'layer1.bias': 'new_layer1.bias',
-                         'layer1.weight': 'new_layer1.weight'}
-        new_base.from_state(s, restore_params, param_mapping)
+        restore_mapping = {'layer1.bias': 'new_layer1.bias',
+                           'layer1.weight': 'new_layer1.weight'}
+        new_base.from_state(s, restore_params, restore_mapping)
         ns = new_base.to_state()
 
         # layer1 has been restored under the new name `new_layer1`.
@@ -485,10 +486,8 @@ class TestRunner(Test):
         """
         exp_id = 'training0'
         params = self.setup_params(exp_id=exp_id)
-        self.log.info(params)
 
         runner = self.test_class.from_params(**params)
-        # self.log.info(runner)
         runner.train_from_params()
 
         # test if results are as expected
@@ -521,34 +520,41 @@ class TestRunner(Test):
 
     def setup_params(self, exp_id=None):
         """Create params that can be used for training."""
-        model_params = {'func': model.MNIST,
-                        'devices': [0, 1]}
-        save_params = {
+        model_params = {
+            'func': model.MNIST,
+            'devices': [0, 1],
+            'net': '',
+            'criterion': '',
+            'optimizer': ''}
 
+        save_params = {
+            'save_metric_freq': 100,  # Enforce!
+            'intermediate': '',
             'save_valid_freq': 20,
             'save_filters_freq': 200,
             'cache_filters_freq': 100}
+
+        load_params = {
+            'restore': False,
+            'restore_params': None,
+            'restore_mapping': None}
 
         dbinterface_params = {
             'func': database.MongoInterface,
             'host': self.host,
             'port': self.port,
-            'dbname': self.database_name,
-            'collname': self.collection_name}
+            'database_name': self.database_name,
+            'collection_name': self.collection_name}
 
         dataprovider_params = {'func': data.MNISTProvider,
                                'batch_size': 100,
                                'n_threads': 4},
 
         train_params = {'num_steps': 500}
+        validation_params = {}
 
-        load_params = {'do_restore': True}
 
-        loss_params = {'func': nn.CrossEntropyLoss}
 
-        optimizer_params = {'func': optim.SGD,
-                            'momentum': 0.9,
-                            'lr': 0.05}
 
         params = {
             'save_params': save_params,

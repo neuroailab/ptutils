@@ -23,7 +23,10 @@ if 'PTUTILS_HOME' in os.environ:
 else:
     PTUTILS_HOME = os.path.join(os.environ['HOME'], '.ptutils')
 
-DEFAULT_LOAD_PARAMS = {'do_restore': True}
+DEFAULT_LOAD_PARAMS = {'restore': False,
+                       'restore_params': None,
+                       'restore_mapping': None}
+
 DEFAULT_LOSS_PARAMS = {'func': nn.CrossEntropyLoss}
 DEFAULT_OPTIMIZER_PARAMS = {'func': optim.SGD,
                             'momentum': 0.9,
@@ -88,17 +91,22 @@ class Base(object):
         return cls(**params)
 
     def to_state(self, destination=None, prefix=''):
-        """Return a dictionary containing a whole state of the module."""
+        """Return a dictionary containing a whole state of the module.
+
+        TODO: CAVEAT GOES HERE
+
+        """
         if destination is None:
             destination = collections.OrderedDict()
         for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
                 base.state_dict(destination, prefix + name + '.')
+
             else:
                 base.to_state(destination, prefix + name + '.')
         return destination
 
-    def from_state(self, state, restore_params=None, param_mapping=None):
+    def from_state(self, state, restore_params=None, restore_mapping=None):
         """Restore base to the state specified by `state`.
 
         Args:
@@ -108,7 +116,7 @@ class Base(object):
                 If a regex, it must match all the param names to be restored.
                 If None, attempts to restore all parameters.
                 Defaults to None.
-            param_mapping (dict, optional): Maps old param names to new names.
+            restore_mapping (dict, optional): Maps old param names to new names.
                 Defaults to None.
 
         Returns:
@@ -133,19 +141,19 @@ class Base(object):
             raise TypeError('restore_params ({}) unsupported.'
                             .format(type(restore_params)))
 
-        if param_mapping is None:
+        if restore_mapping is None:
             # Use identity mapping if None.
-            param_mapping = {name: name for name in state.keys()}
+            restore_mapping = {name: name for name in state.keys()}
         else:
             # print('before')
-            # print(param_mapping)
-            param_mapping.update({name: name for name in state.keys()
-                                  if name not in param_mapping})
+            # print(restore_mapping)
+            restore_mapping.update({name: name for name in state.keys()
+                                    if name not in restore_mapping})
             # print('after')
-            # print(param_mapping)
+            # print(restore_mapping)
         for name, param in state.items():
             if name in restore_params:
-                own_state[param_mapping[name]].copy_(param)
+                own_state[restore_mapping[name]].copy_(param)
 
         return self
 
@@ -153,6 +161,7 @@ class Base(object):
         if isinstance(value, (Base, torch.nn.Module)):
             self._bases[name] = value
         else:
+            # Allow this , just restrict for _params.
             if not name.startswith('_'):
                 self._params[name] = value
         object.__setattr__(self, name, value)
@@ -207,10 +216,64 @@ class Runner(Base):
         # Params
         self._save_params = None
         self._load_params = None
-
-        self._loss_params = None
         self._train_params = None
-        self._optimizer_params = None
+
+    def step(self, prev_output):
+        """Define a single step of an experiment.
+
+        This must increment the global step. A common use case
+        will be to simply make a forward pass update the model.
+
+        Formally, this will call model.forward(), whose output should
+        be used by the dataprovider to provide the next batch of data.
+
+        """
+        data = self.dataprovider.provide(prev_output)
+        output = self.model.forward(data)
+
+        print('step: {}; loss: {}'.format(self.global_step,
+                                          output['loss'].data[0]))
+        return output
+
+    def train(self):
+        """Define the primary training loop.
+
+        The default is to just step the trainer.
+
+        """
+        model_output = None
+        for step in range(self.num_steps):
+            model_output = self.step(model_output)
+
+
+            if self.global_step % self.metric_freq == 0:
+                # Save stuff
+                self.dbinterface.save(output)
+            # You may want to do additional computation
+            # in between steps.
+
+            self.global_step += 1
+
+    def train_from_params(self):
+        """Run the execution of an experiment.
+
+        This is the primary entrance to the Trainer class.
+
+        """
+        # Enforce that all Runners have an exp_id
+        assert self.exp_id is not None, 'Must provide and exp_id'
+
+        # Restore previous run.
+        if self.load_params['do_restore']:
+            self.load_run()
+
+        # Do any initialization needed here
+        # initial_input = self.dataprovider.get_initial_input()
+
+        # Start the main training loop.
+        self.train()
+
+
 
     @classmethod
     def from_params(cls, **params):
@@ -272,54 +335,6 @@ class Runner(Base):
             raise StepError('The global step can only be incremented by one.')
         else:
             self._global_step = value
-
-    def step(self, input, target):
-        self.global_step += 1
-        """Define a single step of an experiment.
-
-        This must increment the global step. A common use case
-        will be to simply make a forward pass update the model.
-
-        Formally, this will call model.forward(), whose output should
-        be used by the dataprovider to provide the next batch of data.
-
-        """
-        output = self.model(input, target)
-        # print('step: {}; loss: {}'.format(self.global_step,
-                                          # self.model._loss.data[0]))
-
-    def train(self, dataloader):
-        """Define the primary training loop.
-
-        The default is to just step the trainer.
-
-        """
-        # Step the Trainer
-        for input, target in dataloader:
-            self.step(input, target)
-
-            # You may want to do additional computation
-            # in between steps.
-
-    def train_from_params(self):
-        """Run the execution of an experiment.
-
-        This is the primary entrance to the Trainer class.
-
-        """
-        assert self.exp_id is not None, 'Must provide and exp_id'
-        # if self.load_params['do_restore']:
-            # self.load_run()
-
-        # Do any initialization needed here
-        input = self.datasource.provide()
-
-        # Start the main training loop.
-        self.train(input)
-
-        # Perhaps you do validation at this point
-
-        # Do any cleanup needed to conclude the experiment.
 
     def load_run(self):
         params = self.dbinterface.load({'exp_id': self.exp_id})
