@@ -30,7 +30,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from ptutils import base, data, model, database
+from ptutils import base, data, error, model, database
 
 LOG_LEVEL = 'DEBUG'
 
@@ -69,18 +69,79 @@ class TestBase(unittest.TestCase):
 
     # Test to_params ----------------------------------------------------------
 
-    def test_to_params(self):
-        params = {'test_params': 'test'}
-        base = self.test_class.from_params(params)
-        # TODO: Add tests.
 
+
+    def test_to_params(self):
+        """Illustrate the behavior of the `Base.to_state` method.
+
+        The `to_state` method is an enhanced version of pytorch's native
+        `torch.nn.module.state_dict` that seeks to establish a namespace
+        with respect to that base object. One can therefore obtain a pseudo-
+        global namespace of a ptutils experiment via the `to_state` method
+        of the root Base class, which will be the `Runner` class in almost
+        every time.
+
+        Similar to pytorch, `to_state` returns a 'flat' (non-nested) ordered
+        dict that maps names to parameters. However, a key difference is that
+        a Base object needn't be an instance of a torch.nn.Module or even have
+        nn.Modules as immediate children for it to be able to produce a
+        `state_dict`-like dictionary.
+
+        Caveat:
+        """
+        # Base with torch.nn.Module child.
+        base = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.linear = linear
+        self.assertEqual(base.to_state().keys(),
+                         ['linear.weight', 'linear.bias'])
+
+    def test_to_state_with_base_child_with_module_child(self):
+        """Base with Base child with torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.child.linear = linear
+        self.assertEqual(base.to_state().keys(),
+                         ['child.linear.weight', 'child.linear.bias'])
+
+    def test_to_state_with_base_and_module_child(self):
+        """Base with Base child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        base.child = child
+        base.linear = linear
+        self.assertItemsEqual(
+            base.to_state().keys(),
+            ['linear.weight', 'linear.bias'])
+
+    def test_to_state_with_module_child_and_base_child_with_module_child(self):
+        """Base child with torch.nn.Module child and torch.nn.Module child."""
+        base = self.test_class()
+        child = self.test_class()
+        linear = torch.nn.Linear(2, 2)
+        child_linear = torch.nn.Linear(4, 4)
+        base.child = child
+        base.linear = linear
+        base.child.child_linear = child_linear
+        self.assertItemsEqual(
+            base.to_state().keys(),
+            ['linear.weight', 'linear.bias',
+             'child.child_linear.weight', 'child.child_linear.bias'])
     # Test from_params --------------------------------------------------------
 
     def test_from_params(self):
         params = {'test_param_name': 'test_param_value',
                   'test_base_name': self.test_class()}
-        base = self.test_class.from_params(params)
-        # TODO: Add tests.
+        base = self.test_class.from_params(**params)
+        self.log.info(base)
+
+    def test_from_params(self):
+        params = {'invalid_param_key': 'invalid_param_value'}
+        with self.assertRaises(error.ParamError):
+            base = self.test_class.from_params(**params)
 
     # Test to_state -----------------------------------------------------------
 
@@ -431,6 +492,7 @@ class TestBase(unittest.TestCase):
         cls.log.setLevel(LOG_LEVEL)
 
 
+@unittest.skip('test')
 class Test(unittest.TestCase):
     """Test class with convenient database access."""
 
@@ -619,7 +681,60 @@ class TestMongoInterface(Test):
         self.assertEqual(r.count(), 0)
 
 
-@unittest.skip('skip')
+class TestModel(Test):
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up class once before any test methods are run."""
+        cls.setup_log()
+        cls.setup_conn()
+
+        # Test primary Model class.
+        cls.test_class = model.Model
+
+
+class TestModel(Test):
+
+    @classmethod
+    def setUpClass(cls):
+        """Set up class once before any test methods are run."""
+        cls.setup_log()
+        cls.setup_conn()
+
+        # Test primary Model class.
+        cls.test_class = model.Model
+
+    @unittest.skip('skip')
+    def test_from_params_empty(self):
+        model = self.test_class.from_params({})
+        self.log.info(model)
+        self.log.info(model._bases)
+        self.log.info(model._params)
+
+    def test_from_params(self):
+        pass
+
+
+class TestMNISTModel(Test):
+
+    @unittest.skip('skip')
+    def test_from_params(self):
+        model_params = {
+            'name': 'MNIST',
+            'devices': [0, 1],
+            'net': model.ConvMNIST,
+            'fc': 'fc',
+            'criterion': {
+                {nn.CrossEntropyLoss: {}}},
+            'optimizer': '',
+            }
+
+        mnist = model.Model.from_params(model_params)
+        self.log.info(mnist)
+        self.log.info(mnist._params)
+        self.log.info(mnist.to_params())
+
+
 class TestRunner(Test):
 
     @classmethod
@@ -640,6 +755,24 @@ class TestRunner(Test):
         """Tear Down is called after _each_ test method is executed."""
         pass
 
+    @unittest.skip('skip')
+    def test_training_from_objects(self):
+        runner = self.test_class()
+
+        runner.num_steps = 500
+        runner.exp_id = 'test_exp_id'
+        runner.model = model.MNISTModel()
+        runner.dataprovider = data.MNISTProvider()
+        runner.dbinterface = database.MongoInterface(self.database_name,
+                                                     self.collection_name)
+
+        runner.save_params = {'metric_freq': 10}
+        runner.load_params = {'restore': False}
+
+        self.log.info(runner)
+        runner.train_from_params()
+
+    @unittest.skip('skipping')
     def test_init(self):
         """Test various combiniations of possible inits."""
         # Test empty base class
@@ -733,16 +866,25 @@ class TestRunner(Test):
         validation_params = {}
 
         params = {
+            'exp_id': 'exp',
             'use_cuda': True,
             'devices': [0, 1, 2, 3],
+            'num_steps': 500,
             'save_params': save_params,
             'load_params': load_params,
             'model_params': model_params,
             'train_params': train_params,
+            'validation_params': validation_params,
             'dbinterface_params': dbinterface_params,
             'dataprovider_params': dataprovider_params}
 
         return params
+
+    def test_enforce_exp_id(self):
+        runner = self.test_class()
+        runner.exp_id = None
+        with self.assertRaises(error.ExpIdError):
+            runner.train_from_params()
 
     @staticmethod
     def asserts_for_record(r, params, train=False):

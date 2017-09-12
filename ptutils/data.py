@@ -120,7 +120,14 @@ class MNISTProvider(DataProvider):
                                transform=transforms.ToTensor(),
                                download=True)
 
-    def provide(self, mode='train', batch_size=100):
+        self.dataloader = iter(DataLoader(dataset=self.train,
+                                          batch_size=batch_size,
+                                          shuffle=(mode == 'train')))
+
+    def provide(self, model_output):
+        return next(self.dataloader)
+
+    def provide_(self, mode='train', batch_size=100):
         return DataLoader(dataset=self[mode],
                           batch_size=batch_size,
                           shuffle=(mode == 'train'))

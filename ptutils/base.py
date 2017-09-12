@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from error import StepError, ExpIdError
+from error import StepError, ExpIdError, ParamError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -69,6 +69,7 @@ class Base(object):
 
     def to_params(self):
         params = collections.OrderedDict()
+        params['func'] = self.__class__
         state_dict = collections.OrderedDict()
         for name, param in self._params.items():
             if param is not None:
@@ -78,13 +79,29 @@ class Base(object):
                 params[name] = base.to_params()
             except AttributeError as params_error:
                 try:
+                    params[name] = collections.OrderedDict({'func': base.__class__})
                     state_dict[name] = base.state_dict().keys()
                 except AttributeError as state_error:
                     log.warning(params_error + state_error)
         return params
 
     @classmethod
-    def from_params(cls, params):
+    def from_params(cls, **params):
+        try:
+            print(func)
+        except Exception:
+            raise ParamError('Param key \'func\' not provided.')
+
+        for key, value in params.items():
+            if isinstance(key, type):
+                if isinstance(value, collections.Mapping):
+                    return key.from_params(value)
+            elif isinstance(value, collections.Mapping):
+                params[key] = cls.from_params(value)
+        return cls(**params)
+
+    @classmethod
+    def from_params_(cls, params):
         for key, value in params.items():
             if isinstance(key, type):
                 if isinstance(value, collections.Mapping):
@@ -148,12 +165,8 @@ class Base(object):
             # Use identity mapping if None.
             restore_mapping = {name: name for name in state.keys()}
         else:
-            # print('before')
-            # print(restore_mapping)
             restore_mapping.update({name: name for name in state.keys()
                                     if name not in restore_mapping})
-            # print('after')
-            # print(restore_mapping)
         for name, param in state.items():
             if name in restore_params:
                 own_state[restore_mapping[name]].copy_(param)
@@ -195,7 +208,6 @@ class Base(object):
                 base.cuda()
             else:
                 base.cuda(devices=self.devices)
-            print('Calling cuda on {} with devices {}\n'.format(base, self.devices))
 
     def cpu(self):
         """Move all Bases to the CPU."""
@@ -283,7 +295,7 @@ class Runner(Base):
 
         """
         data = self.dataprovider.provide(prev_output)
-        output = self.model.forward(data)
+        output = self.model.step(data)
 
         print('step: {}; loss: {}'.format(self.global_step,
                                           output['loss'].data[0]))
@@ -299,9 +311,16 @@ class Runner(Base):
         for step in range(self.num_steps):
             model_output = self.step(model_output)
 
-            if self.global_step % self.metric_freq == 0:
+            if self.global_step % self.save_params['metric_freq'] == 0:
                 # Save stuff
-                self.dbinterface.save(output)
+                record = {'exp_id': self.exp_id,
+                          'step': self.global_step,
+                          'loss': model_output['loss'].data[0]}
+                self.dbinterface.save(record)
+            # if val_freq % 0:
+                # val_model_output = None
+                # for val_step in self.validation_params['num_steps']
+                    # val_model_output = self.validation_step(val_model_output)
             # You may want to do additional computation
             # in between steps.
 
@@ -318,10 +337,12 @@ class Runner(Base):
                 raise ExpIdError('Cannot run an experiment without an exp_id')
 
         # Restore previous run.
-        if self.load_params['do_restore']:
+        if self.load_params['restore']:
             self.load_run()
 
         # Start the main training loop.
+        self.cuda(devices=[0, 1])
+
         self.train()
 
     @classmethod
@@ -339,8 +360,6 @@ class Runner(Base):
         dataprovider_params = params.get('dataprovider_params', None)
         runner.get_dataprovider(**dataprovider_params)
 
-        runner._params['loss_params'] = params.get('loss_params', DEFAULT_LOSS_PARAMS)
-        runner._params['optimizer_params'] = params.get('optimizer_params', DEFAULT_OPTIMIZER_PARAMS)
         return runner
 
     def predict(self):
@@ -389,6 +408,7 @@ class Runner(Base):
 
     def load_run(self):
         params = self.dbinterface.load({'exp_id': self.exp_id})
+        # TODO: Raise exc if not found of exp_id collisions.
         if params is not None:
             return self.from_params(**params)
         else:

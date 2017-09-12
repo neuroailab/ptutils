@@ -1,5 +1,6 @@
 import torch
 
+from ptutils.base import Base
 
 class Optimizer(torch.optim.Optimizer):
     def __init__(self, optimizer, param_groups=None, **kwargs):
@@ -8,7 +9,6 @@ class Optimizer(torch.optim.Optimizer):
         Args:
             optimizer (str or callable): Name of the optimizer when str, handle to the optimizer class when callable.
                 If a name is provided, this optimizer looks for the optimizer in `torch.optim`
-                module first and in inferno.extensions.optimizers second.
             param_groups (list of dict): Specifies the parameter group. Defaults to model.parameters() if None.
             **kwargs: Keyword Arguments.
 

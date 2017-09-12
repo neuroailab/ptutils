@@ -6,11 +6,13 @@ Encapsulates a neural network model, criterion and optimizer.
 import random
 
 import torch
-from torch.autograd import Variable
 import torch.nn as nn
+import torch.optim as optim
+from torch.autograd import Variable
 from torch.nn.parallel import data_parallel
 
 from ptutils.base import Base
+
 
 class Model(Base):
 
@@ -18,16 +20,9 @@ class Model(Base):
         super(Model, self).__init__(*args, **kwargs)
 
         # Core
-        # self._net = None
-        # self._criterion = None
-        # self._optimizer = None
-
-        # GPU and dtype business
-        # This should go in the params 'specification (spec)'
-        self._dtype = 'float'
-        self._devices = None
-        self._use_cuda = torch.cuda.is_available()
-        # self._use_cuda = False
+        self.net = None
+        self.criterion = None
+        self.optimizer = None
 
         # self.model = torch.nn.DataParallel(self.model).cuda()
 
@@ -48,15 +43,18 @@ class Model(Base):
 
         self._loss = None
 
-    def output(self, input):
-        input_var = Variable(input)
-        if self._devices is not None:
-            return data_parallel(self.net, input_var, list(self._devices))
+    def forward(self, input):
+        input_var = Variable(input).cuda()
+        if self.devices is not None:
+            return data_parallel(self.net, input_var, list(self.devices))
         else:
             return self.net(input_var)
 
+    def inference(self, input):
+        return self.forward(input)
+
     def loss(self, output, target):
-        target_var = Variable(target)
+        target_var = Variable(target).cuda()
         loss = self.criterion(output, target_var)
         return loss
 
@@ -71,34 +69,22 @@ class Model(Base):
         self.apply_gradients()
         self.optimizer.zero_grad()
 
-    def forward(self, input, target):
-        output = self.output(input)
+    def step(self, inputs):
+        input, target = inputs
+        output = self.forward(input)
         self._loss = self.loss(output, target)
         self.optimize(self._loss)
+        return {'loss': self._loss}
 
-    @property
-    def net(self):
-        return self._bases['net']
 
-    @net.setter
-    def net(self, value):
-        self._bases['net'] = value
+class MNISTModel(Model):
 
-    @property
-    def criterion(self):
-        return self._bases['criterion']
-
-    @criterion.setter
-    def criterion(self, value):
-        self._bases['criterion'] = value
-
-    @property
-    def optimizer(self):
-        return self._bases['optimizer']
-
-    @optimizer.setter
-    def optimizer(self, value):
-        self._bases['optimizer'] = value
+    def __init__(self, *args, **kwargs):
+        super(MNISTModel, self).__init__(*args, **kwargs)
+        self.net = MNIST()
+        self.learning_rate = 1e-3
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimizer = optim.Adam(self.net.parameters(), self.learning_rate)
 
 
 class MNIST(nn.Module, Base):
@@ -125,15 +111,37 @@ class MNIST(nn.Module, Base):
         out = self.fc(out)
         return out
 
+
 class ConvMNIST(nn.Module, Base):
-    pass
+    def __init__(self):
+        super(ConvMNIST, self).__init__()
+
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.view(out.size(0), -1)
+        return out
 
 
 class FcMNIST(nn.Module, Base):
 
     def __init__(self):
         super(FcMNIST, self).__init__()
+        self.fc = nn.Linear(7 * 7 * 32, 10)
 
+    def forward(self, x):
+        return self.fc(x)
 
 
 class DynamicNet(nn.Module):

@@ -5,6 +5,12 @@ Global PTutils exception and warning classes.
 """
 
 
+class ParamError(Exception):
+    """Exception class to raise if param is invalid."""
+
+    pass
+
+
 class StepError(Exception):
     """Exception class to raise if step is not incremented."""
 
