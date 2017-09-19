@@ -54,7 +54,6 @@ class MongoInterface(DBInterface):
                  port=27017,
                  **kwargs):
         super(MongoInterface, self).__init__(**kwargs)
-        # super(MongoInterface, self).__init__()
 
         self.host = host
         self.port = port
@@ -73,8 +72,8 @@ class MongoInterface(DBInterface):
     def _close(self):
         self.client.close()
 
-    def __del__(self):
-        self._close()
+    # def __del__(self):
+        # self._close()
 
     def __repr__(self):
         """Return module string representation."""

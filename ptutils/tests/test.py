@@ -33,6 +33,7 @@ import torch.optim as optim
 from ptutils import base, data, error, model, database
 
 LOG_LEVEL = 'DEBUG'
+MONOGO_PORT = 27017
 
 
 def setUpModule():
@@ -68,8 +69,6 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.name, 'base')
 
     # Test to_params ----------------------------------------------------------
-
-
 
     def test_to_params(self):
         """Illustrate the behavior of the `Base.to_state` method.
@@ -138,10 +137,10 @@ class TestBase(unittest.TestCase):
         base = self.test_class.from_params(**params)
         self.log.info(base)
 
-    def test_from_params(self):
-        params = {'invalid_param_key': 'invalid_param_value'}
-        with self.assertRaises(error.ParamError):
-            base = self.test_class.from_params(**params)
+    # def test_from_params(self):
+        # params = {'invalid_param_key': 'invalid_param_value'}
+        # with self.assertRaises(error.ParamError):
+            # base = self.test_class.from_params(**params)
 
     # Test to_state -----------------------------------------------------------
 
@@ -492,12 +491,11 @@ class TestBase(unittest.TestCase):
         cls.log.setLevel(LOG_LEVEL)
 
 
-@unittest.skip('test')
 class Test(unittest.TestCase):
     """Test class with convenient database access."""
 
     # Port on which the MongoDB instance to be used by tests needs to be running.
-    port = 29101
+    port = MONOGO_PORT
     # Host on which the MongoDB instance to be used by tests needs to be running.
     host = 'localhost'
     # Name of the mongodb database where results will be stored by tests.
@@ -577,7 +575,6 @@ class Test(unittest.TestCase):
                 raise
 
 
-@unittest.skip('skip')
 class TestMongoInterface(Test):
 
     def setUp(self):
@@ -704,7 +701,6 @@ class TestModel(Test):
         # Test primary Model class.
         cls.test_class = model.Model
 
-    @unittest.skip('skip')
     def test_from_params_empty(self):
         model = self.test_class.from_params({})
         self.log.info(model)
@@ -717,7 +713,6 @@ class TestModel(Test):
 
 class TestMNISTModel(Test):
 
-    @unittest.skip('skip')
     def test_from_params(self):
         model_params = {
             'name': 'MNIST',
@@ -755,7 +750,6 @@ class TestRunner(Test):
         """Tear Down is called after _each_ test method is executed."""
         pass
 
-    @unittest.skip('skip')
     def test_training_from_objects(self):
         runner = self.test_class()
 
@@ -772,14 +766,12 @@ class TestRunner(Test):
         self.log.info(runner)
         runner.train_from_params()
 
-    @unittest.skip('skipping')
     def test_init(self):
         """Test various combiniations of possible inits."""
         # Test empty base class
         runner = self.test_class()
         self.assertEqual(runner.name, 'runner')
 
-    @unittest.skip('skipping')
     def test_training(self):
         """Illustrate training.
 

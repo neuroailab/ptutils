@@ -1,4 +1,4 @@
-"""ptutils model.py
+"""ptutils model.py.
 
 Encapsulates a neural network model, criterion and optimizer.
 
@@ -19,11 +19,6 @@ class Model(Base):
     def __init__(self, *args, **kwargs):
         super(Model, self).__init__(*args, **kwargs)
 
-        # Core
-        self.net = None
-        self.criterion = None
-        self.optimizer = None
-
         # self.model = torch.nn.DataParallel(self.model).cuda()
 
         # use_cuda = torch.cuda.is_available()
@@ -42,6 +37,33 @@ class Model(Base):
         #     volatile = True
 
         self._loss = None
+
+    @property
+    def net(self):
+        """Get the net."""
+        return self._bases['net']
+
+    @net.setter
+    def net(self, value):
+        self._bases['net'] = value
+
+    @property
+    def criterion(self):
+        """Get the criterion."""
+        return self._bases['criterion']
+
+    @criterion.setter
+    def criterion(self, value):
+        self._bases['criterion'] = value
+
+    @property
+    def optimizer(self):
+        """Get the optimizer."""
+        return self._bases['optimizer']
+
+    @optimizer.setter
+    def optimizer(self, value):
+        self._bases['optimizer'] = value
 
     def forward(self, input):
         input_var = Variable(input).cuda()

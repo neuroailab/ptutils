@@ -1,3 +1,7 @@
+"""Training MNIST with ptutils
+
+The hello world example of deep learning.
+"""
 import torch.nn as nn
 import torch.optim as optim
 

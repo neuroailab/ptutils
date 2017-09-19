@@ -82,23 +82,42 @@ class Base(object):
                     params[name] = collections.OrderedDict({'func': base.__class__})
                     state_dict[name] = base.state_dict().keys()
                 except AttributeError as state_error:
-                    log.warning(params_error + state_error)
+                    log.warning(str(params_error) + str(state_error))
+
         return params
 
     @classmethod
     def from_params(cls, **params):
         try:
-            print(func)
-        except Exception:
-            raise ParamError('Param key \'func\' not provided.')
-
+            func = params['func']
+        except KeyError:
+            raise ParamError('must provide func')
         for key, value in params.items():
-            if isinstance(key, type):
-                if isinstance(value, collections.Mapping):
-                    return key.from_params(value)
-            elif isinstance(value, collections.Mapping):
-                params[key] = cls.from_params(value)
-        return cls(**params)
+            if isinstance(value, dict):
+                    params[key] = func.from_params(**value)
+               #     print(func)
+        return func(**params)
+
+    # @classmethod
+    # def from_params(cls, **params):
+    #     try:
+    #         func = params['func']
+    #     except Exception:
+    #         raise Exception('Param key \'func\' not provided.')
+
+    #     for key, value in params.items():
+    #     #     if isinstance(key, type):
+    #     #         if isinstance(value, dict):
+    #     #             return key.from_params(**value)
+    #         if isinstance(value, dict):
+    #             try:
+    #                 params[key] = func.from_params(**value)
+    #             except Exception:
+    #                 print('------')
+    #                 print(key)
+    #                 print(value)
+    #                 print(func)
+    #     return func(**params)
 
     @classmethod
     def from_params_(cls, params):
@@ -264,24 +283,62 @@ class Base(object):
 
 
 class Runner(Base):
+    """Summary.
 
-    def __init__(self, model=None, dbinterface=None, dataprovider=None, **kwargs):
-        super(Runner, self).__init__(model=None,
+    Attributes:
+        dataprovider (TYPE): Description.
+        dbinterface (TYPE): Description.
+        exp_id (TYPE): Description.
+        global_step (int): Description.
+        load_params (TYPE): Description.
+        model (TYPE): Description.
+        save_params (TYPE): Description.
+        train_params (TYPE): Description.
+
+    """
+
+    def __init__(self,
+                 exp_id,
+                 model=None,
+                 dbinterface=None,
+                 dataprovider=None,
+                 train_params=None,
+                 save_params=None,
+                 load_params=None,
+                 **kwargs):
+        """Define the :class:`Runner` class.
+
+        Args:
+            exp_id (str): Description.
+            model (Model, optional): Description.
+            dbinterface (DBInterface, optional): Description.
+            dataprovider (DataProvider, optional): Description.
+            train_params (dict, optional): Description.
+            save_params (dict, optional): Description.
+            load_params (dict, optional): Description.
+            **kwargs: Additional attr required by runner.
+
+        """
+        super(Runner, self).__init__(exp_id,
+                                     model=None,
                                      dbinterface=None,
                                      dataprovider=None,
+                                     train_params=None,
+                                     save_params=None,
+                                     load_params=None,
                                      **kwargs)
 
         # Core
-        self.model = None
-        self.dbinterface = None
-        self.dataprovider = None
+        self.model = model
+        self.dbinterface = dbinterface
+        self.dataprovider = dataprovider
 
         # Params
-        self.save_params = None
-        self.load_params = None
-        self.train_params = None
+        self.save_params = save_params
+        self.load_params = load_params
+        self.train_params = train_params
 
-        self.exp_id = None
+        self.exp_id = exp_id
         self.global_step = 0
 
     def step(self, prev_output):
@@ -332,7 +389,7 @@ class Runner(Base):
         This is the primary entrance to the Trainer class.
 
         """
-        # Enforce that all Runners have an exp_id
+        # Enforce that all Runners have an exp_id.
         if self.exp_id is None:
                 raise ExpIdError('Cannot run an experiment without an exp_id')
 
@@ -340,27 +397,28 @@ class Runner(Base):
         if self.load_params['restore']:
             self.load_run()
 
-        # Start the main training loop.
+        # Prepare devices.
         self.cuda(devices=[0, 1])
 
+        # Start the main training loop.
         self.train()
 
-    @classmethod
-    def from_params(cls, **params):
-        runner = cls()
-        runner.save_params = params.get('save_params', None)
-        runner.load_params = params.get('load_params', None)
+    # @classmethod
+    # def from_params(cls, **params):
+    #     runner = cls()
+    #     runner.save_params = params.get('save_params', None)
+    #     runner.load_params = params.get('load_params', None)
 
-        model_params = params.get('model_params', None)
-        runner.get_model(**model_params)
+    #     model_params = params.get('model_params', None)
+    #     runner.get_model(**model_params)
 
-        dbinterface_params = params.get('dbinterface_params', None)
-        runner.get_dbinterface(**dbinterface_params)
+    #     dbinterface_params = params.get('dbinterface_params', None)
+    #     runner.get_dbinterface(**dbinterface_params)
 
-        dataprovider_params = params.get('dataprovider_params', None)
-        runner.get_dataprovider(**dataprovider_params)
+    #     dataprovider_params = params.get('dataprovider_params', None)
+    #     runner.get_dataprovider(**dataprovider_params)
 
-        return runner
+    #     return runner
 
     def predict(self):
         pass
