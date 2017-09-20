@@ -1,5 +1,10 @@
 """ptutils base module.
 
+This module defines the base ptutils class that should subclassed by all
+subsequent ptutils classes. This class generates useful information about
+itself that can be used to recreate and resume experiments exactly as they
+were.
+
 """
 from __future__ import print_function
 
@@ -57,15 +62,29 @@ class Base(object):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-    # @property
-    # def name(self):
-        # return self._name
-        # self._params['name']
+    @property
+    def name(self):
+        return self._params['name']
 
-    # @name.setter
-    # def name(self, value):
-        # self._name = value
-        # self._params['name'] = value
+    @name.setter
+    def name(self, value):
+        self._params['name'] = value
+
+    @property
+    def devices(self):
+        return self._params['devices']
+
+    @devices.setter
+    def devices(self, value):
+        self._params['devices'] = value
+
+    @property
+    def use_cuda(self):
+        return self._params['use_cuda']
+
+    @use_cuda.setter
+    def use_cuda(self, value):
+        self._params['use_cuda'] = value
 
     def to_params(self):
         params = collections.OrderedDict()
@@ -88,46 +107,27 @@ class Base(object):
 
     @classmethod
     def from_params(cls, **params):
+        if 'func' in params:
+            func = params['func']
+            for key, value in params.items():
+                if isinstance(value, dict):
+                    params[key] = func.from_params(**value)
+            return func(**params)
+        else:
+            return params
+
+    @classmethod
+    def _from_params(cls, **params):
         try:
             func = params['func']
         except KeyError:
-            raise ParamError('must provide func')
-        for key, value in params.items():
-            if isinstance(value, dict):
+            pass
+            # raise ParamError('Param key \'func\' not provided.')
+        else:
+            for key, value in params.items():
+                if isinstance(value, dict):
                     params[key] = func.from_params(**value)
-               #     print(func)
-        return func(**params)
-
-    # @classmethod
-    # def from_params(cls, **params):
-    #     try:
-    #         func = params['func']
-    #     except Exception:
-    #         raise Exception('Param key \'func\' not provided.')
-
-    #     for key, value in params.items():
-    #     #     if isinstance(key, type):
-    #     #         if isinstance(value, dict):
-    #     #             return key.from_params(**value)
-    #         if isinstance(value, dict):
-    #             try:
-    #                 params[key] = func.from_params(**value)
-    #             except Exception:
-    #                 print('------')
-    #                 print(key)
-    #                 print(value)
-    #                 print(func)
-    #     return func(**params)
-
-    @classmethod
-    def from_params_(cls, params):
-        for key, value in params.items():
-            if isinstance(key, type):
-                if isinstance(value, collections.Mapping):
-                    return key.from_params(value)
-            elif isinstance(value, collections.Mapping):
-                params[key] = cls.from_params(value)
-        return cls(**params)
+            return func(**params)
 
     def to_state(self, destination=None, prefix=''):
         """Return a dictionary containing a whole state of the module.
@@ -139,8 +139,10 @@ class Base(object):
             destination = collections.OrderedDict()
         for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
-                base.state_dict(destination, prefix + name + '.')
-
+                try:
+                    base.state_dict(destination, prefix + name + '.')
+                except AttributeError as state_error:
+                    log.warning(state_error)
             else:
                 base.to_state(destination, prefix + name + '.')
         return destination
@@ -180,6 +182,7 @@ class Base(object):
             raise TypeError('restore_params ({}) unsupported.'
                             .format(type(restore_params)))
 
+        # Determine the restore params mapping.
         if restore_mapping is None:
             # Use identity mapping if None.
             restore_mapping = {name: name for name in state.keys()}
@@ -306,7 +309,7 @@ class Runner(Base):
                  save_params=None,
                  load_params=None,
                  **kwargs):
-        """Define the :class:`Runner` class.
+        """Initialize the :class:`Runner` class.
 
         Args:
             exp_id (str): Description.
@@ -319,27 +322,99 @@ class Runner(Base):
             **kwargs: Additional attr required by runner.
 
         """
-        super(Runner, self).__init__(exp_id,
-                                     model=None,
-                                     dbinterface=None,
-                                     dataprovider=None,
-                                     train_params=None,
-                                     save_params=None,
-                                     load_params=None,
-                                     **kwargs)
+        super(Runner, self).__init__(**kwargs)
 
-        # Core
+        # Core bases.
         self.model = model
         self.dbinterface = dbinterface
         self.dataprovider = dataprovider
 
-        # Params
+        # Params.
         self.save_params = save_params
         self.load_params = load_params
         self.train_params = train_params
 
         self.exp_id = exp_id
         self.global_step = 0
+
+# -- Runner Properties ---------------------------------------------------------
+
+    @property
+    def exp_id(self):
+        return self._params['exp_id']
+
+    @exp_id.setter
+    def exp_id(self, value):
+        self._params['exp_id'] = value
+
+    @property
+    def global_step(self):
+        return self._params['global_step']
+
+    @global_step.setter
+    def global_step(self, value):
+        # if value <= self._params['global_step']:
+            # raise StepError('The global step should have been incremented.')
+        if value > (self._params['global_step'] + 1):
+            raise StepError('The global step can only be incremented by one.')
+        elif value < 0:
+            raise StepError('The global step cannot be negative.')
+        else:
+            self._params['global_step'] = value
+
+    @property
+    def model(self):
+        """Get the model."""
+        return self._bases['model']
+
+    @model.setter
+    def model(self, value):
+        self._bases['model'] = value
+
+    @property
+    def dbinterface(self):
+        return self._bases['dbinterface']
+
+    @dbinterface.setter
+    def dbinterface(self, value):
+        self._bases['dbinterface'] = value
+
+    @property
+    def dataprovider(self):
+        return self._bases['dataprovider']
+
+    @dataprovider.setter
+    def dataprovider(self, value):
+        self._bases['dataprovider'] = value
+
+    @property
+    def save_params(self):
+        """Get the save parameters."""
+        return self._params['save_params']
+
+    @save_params.setter
+    def save_params(self, value):
+        self._params['save_params'] = value
+
+    @property
+    def load_params(self):
+        """Get the load parameters."""
+        return self._params['load_params']
+
+    @load_params.setter
+    def load_params(self, value):
+        self._params['load_params'] = value
+
+    @property
+    def train_params(self):
+        """Get the train parameters."""
+        return self._params['train_params']
+
+    @train_params.setter
+    def train_params(self, value):
+        self._params['train_params'] = value
+
+# -- Runner Methods ------------------------------------------------------------
 
     def step(self, prev_output):
         """Define a single step of an experiment.
@@ -351,6 +426,7 @@ class Runner(Base):
         be used by the dataprovider to provide the next batch of data.
 
         """
+        prev_output = None
         data = self.dataprovider.provide(prev_output)
         output = self.model.step(data)
 
@@ -361,19 +437,20 @@ class Runner(Base):
     def train(self):
         """Define the primary training loop.
 
-        The default is to just step the trainer.
+        The default behavior is to step the trainer and
+        save intermediate results.
 
         """
         model_output = None
-        for step in range(self.num_steps):
+        for step in range(self.train_params['num_steps']):
             model_output = self.step(model_output)
 
-            if self.global_step % self.save_params['metric_freq'] == 0:
-                # Save stuff
-                record = {'exp_id': self.exp_id,
-                          'step': self.global_step,
-                          'loss': model_output['loss'].data[0]}
-                self.dbinterface.save(record)
+            # if self.global_step % self.save_params['metric_freq'] == 0:
+            #     # Save desired results.
+            #     record = {'exp_id': self.exp_id,
+            #               'step': self.global_step,
+            #               'loss': model_output['loss'].data[0]}
+            #     self.dbinterface.save(record)
             # if val_freq % 0:
                 # val_model_output = None
                 # for val_step in self.validation_params['num_steps']
@@ -403,66 +480,17 @@ class Runner(Base):
         # Start the main training loop.
         self.train()
 
-    # @classmethod
-    # def from_params(cls, **params):
-    #     runner = cls()
-    #     runner.save_params = params.get('save_params', None)
-    #     runner.load_params = params.get('load_params', None)
-
-    #     model_params = params.get('model_params', None)
-    #     runner.get_model(**model_params)
-
-    #     dbinterface_params = params.get('dbinterface_params', None)
-    #     runner.get_dbinterface(**dbinterface_params)
-
-    #     dataprovider_params = params.get('dataprovider_params', None)
-    #     runner.get_dataprovider(**dataprovider_params)
-
-    #     return runner
-
     def predict(self):
+        # TODO
         pass
 
     def test(self):
+        # TODO
         pass
 
     def test_from_params(self):
+        # TODO
         pass
-
-    @property
-    def dbinterface(self):
-        return self._bases['dbinterface']
-
-    @dbinterface.setter
-    def dbinterface(self, value):
-        self._bases['dbinterface'] = value
-
-    def get_dbinterface(self, func, **dbinterface_params):
-        self._params['dbinterface_params'] = dbinterface_params
-        self.dbinterface = func(**dbinterface_params)
-
-    @property
-    def exp_id(self):
-        return self._params['exp_id']
-
-    @exp_id.setter
-    def exp_id(self, value):
-        self._params['exp_id'] = value
-
-    @property
-    def global_step(self):
-        return self._params['global_step']
-
-    @global_step.setter
-    def global_step(self, value):
-        # if value <= self._params['global_step']:
-            # raise StepError('The global step should have been incremented.')
-        if value > (self._params['global_step'] + 1):
-            raise StepError('The global step can only be incremented by one.')
-        elif value < 0:
-            raise StepError('The global step cannot be negative.')
-        else:
-            self._params['global_step'] = value
 
     def load_run(self):
         params = self.dbinterface.load({'exp_id': self.exp_id})
@@ -471,102 +499,6 @@ class Runner(Base):
             return self.from_params(**params)
         else:
             return self
-
-    @property
-    def model(self):
-        """Get the model."""
-        return self._bases['model']
-
-    @model.setter
-    def model(self, value):
-        self._bases['model'] = value
-
-    def get_model(self, func, **model_params):
-        self._params['model_params'] = model_params
-        self.model = func(**model_params)
-
-    @property
-    def save_params(self):
-        """Get the save parameters."""
-        return self._params['save_params']
-
-    @save_params.setter
-    def save_params(self, value):
-        self._params['save_params'] = value
-
-    @property
-    def load_params(self):
-        """Get the load parameters."""
-        return self._params['load_params']
-
-    @load_params.setter
-    def load_params(self, value):
-        self._params['load_params'] = value
-
-    @property
-    def train_params(self):
-        """Get the train parameters."""
-        return self._params['train_params']
-
-    @train_params.setter
-    def train_params(self, value):
-        self._params['train_params'] = value
-
-    @property
-    def optimizer(self):
-        """Get the optimizer."""
-        return self._bases['optimizer']
-
-    @optimizer.setter
-    def optimizer(self, value):
-        if isinstance(value, str) or callable(value):
-            self.get_optimizer(value)
-        elif isinstance(value, dict):
-            self.get_optimizer(**value)
-        else:
-            raise NotImplementedError
-
-    def get_optimizer(self, func, param_groups=None, **optimizer_params):
-        """Build the optimizer for training.
-
-        Args:
-            func (str or callable): Optimizer to .
-            param_groups (None, optional): Description.
-            **optimizer_params: Description.
-
-        Returns:
-            TYPE: Description.
-
-        Raises:
-            NotImplementedError: Description.
-
-        """
-        if isinstance(func, str):
-            optimizer_class = getattr(torch.optim, func, None)
-            assert optimizer_class is not None, "Optimizer {} not found.".format(
-                func)
-        elif callable(func) and isinstance(func, type):
-            optimizer_class = func
-        elif isinstance(func, torch.optim.Optimizer):
-            self._optimizer = func
-            return self
-        else:
-            raise NotImplementedError
-        param_groups = self.model.parameters() if param_groups is None else param_groups
-        self._optimizer = optimizer_class(param_groups, **optimizer_params)
-        return self
-
-    @property
-    def dataprovider(self):
-        return self._bases['dataprovider']
-
-    @dataprovider.setter
-    def dataprovider(self, value):
-        self._bases['dataprovider'] = value
-
-    def get_dataprovider(self, func, **dataprovider_params):
-        self._params['dataprovider_params'] = dataprovider_params
-        self.dataprovider = func(**dataprovider_params)
 
 
 def _addindent(string, numSpaces):

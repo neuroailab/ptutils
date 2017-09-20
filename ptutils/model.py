@@ -16,8 +16,16 @@ from ptutils.base import Base
 
 class Model(Base):
 
-    def __init__(self, *args, **kwargs):
-        super(Model, self).__init__(*args, **kwargs)
+    def __init__(self,
+                 net=None,
+                 criterion=None,
+                 optimizer=None,
+                 **kwargs):
+        super(Model, self).__init__(**kwargs)
+
+        self.net = net
+        self.criterion = criterion
+        self.optimizer = optimizer
 
         # self.model = torch.nn.DataParallel(self.model).cuda()
 
@@ -64,9 +72,16 @@ class Model(Base):
     @optimizer.setter
     def optimizer(self, value):
         self._bases['optimizer'] = value
+        if self.optimizer.params is None:
+            self.optimizer.params = self.net.parameters()
+
+        optimizer = self.optimizer.optimizer_class(self.optimizer.params,
+                                                   **self.optimizer.defaults)
+        self._bases['optimizer'] = optimizer
 
     def forward(self, input):
-        input_var = Variable(input).cuda()
+        input_var = Variable(input)
+        input_var = input_var.cuda(self.devices) if self.use_cuda else input_var
         if self.devices is not None:
             return data_parallel(self.net, input_var, list(self.devices))
         else:
@@ -76,7 +91,8 @@ class Model(Base):
         return self.forward(input)
 
     def loss(self, output, target):
-        target_var = Variable(target).cuda()
+        target_var = Variable(target)
+        target_var = target_var.cuda(self.devices) if self.use_cuda else target_var
         loss = self.criterion(output, target_var)
         return loss
 

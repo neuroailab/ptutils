@@ -109,8 +109,10 @@ class DataReader(Base):
 
 
 class MNISTProvider(DataProvider):
-    def __init__(self, batch_size=100, n_threads=4):
-        super(MNISTProvider, self).__init__()
+    def __init__(self, batch_size=100, n_threads=4, **kwargs):
+        super(MNISTProvider, self).__init__(batch_size=batch_size,
+                                            n_threads=4,
+                                            **kwargs)
         self.modes = ('train', 'test')
         self.batch_size = batch_size
         self.n_threads = n_threads
@@ -139,6 +141,11 @@ class MNIST(dsets.MNIST, Dataset):
         Dataset.__init__(self)
         super(MNIST, self).__init__(root, train, transform,
                                     target_transform, download)
+
+    def to_params(self):
+        return {name: param for name, param in self._params.items()
+                if name not in ['train_data', 'train_labels',
+                                'test_data', 'test_labels']}
 
 
 class CIFARProvider(DataProvider):

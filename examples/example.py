@@ -1,14 +1,18 @@
+"""MNIST Training example.
 
+The deep learning 'Hello, World!' example.
+
+"""
 import torch
 import torch.nn as nn
+
 import ptutils
 
 
 class MNIST(torch.nn.Module, ptutils.base.Base):
-
     def __init__(self, **kwargs):
         super(MNIST, self).__init__()
-        ptutils.base.Base(**kwargs)
+        ptutils.base.Base.__init__(self, **kwargs)
 
         self.layer1 = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=5, padding=2),
@@ -30,53 +34,74 @@ class MNIST(torch.nn.Module, ptutils.base.Base):
         return out
 
 
-class Criterion(ptutils.base.Base):
-    pass
+class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
+
+    def __init__(self, **kwargs):
+        super(Criterion, self).__init__()
+        ptutils.base.Base.__init__(self, **kwargs)
 
 
-class Optimizer(ptutils.base.Base):
-    pass
+class Optimizer(torch.optim.Optimizer, ptutils.base.Base):
+
+    def __init__(self, **kwargs):
+        # super(Optimizer, self).__init__()
+        ptutils.base.Base.__init__(self, **kwargs)
 
 
-class Runner(ptutils.base.Base):
-    pass
-
-
-class DBInterface(ptutils.base.Base):
-    pass
-
-
-class Dataprovider(ptutils.base.Base):
+class Sequential(nn.Sequential, ptutils.base.Base):
     pass
 
 
 # Experiment Params
 params = {
     'func': ptutils.base.Runner,
-    'name': 'MNIST Example',
+    'name': 'MNISTRunner',
     'exp_id': 'mnist_example',
     'description': 'The \'Hello, Wordl!\' of deep learning',
+    'Notes':
+        """
+        This is a simple experiment to demonstrate the most common
+        way in which a user will interact with ptutils. Typically,
+        a user will specify a single model, dbinterface and
+        dataprovider class to be run by the default runner class.
+
+        You can add arbitrary attributes to all instances of the
+        ptutils.base.Base class, such as these notes. Here would
+        be a good place to capture any thoughts or ideas about
+        the experiment that will be run.
+        """,
 
     # Define Model Params
     'model': {
         'func': ptutils.model.Model,
-        'use_cuda': True,
         'name': 'MNIST',
-        'devices': [0, 1],
+        'use_cuda': False,
+        # 'devices': [0, 1],
+
         'net': {
             'func': MNIST,
-            'name': 'mnist'},
+            'name': 'mnist',
+            'layer3': Sequential(
+                nn.Conv2d(1, 16, (5, 5)))},
         'criterion': {
             'func': Criterion,
             'name': 'crossentropy'},
         'optimizer': {
-            'func': Optimizer,
-            'name': 'Adam'}},
+            'func': ptutils.optimizer.Optimizer,
+            'name': 'sgd_optimizer',
+            'algorithm': 'SGD',
+            'params': None,
+            'defaults': {
+                'momentum': 0.9,
+                'lr': 0.05}}},
 
     # Define DataProvider Params
     'dataprovider': {
-        'func': Dataprovider,
-        'name': 'ImageNet'},
+        'func': ptutils.data.MNISTProvider,
+        'name': 'MNISTProvider',
+        'n_threads': 4,
+        'batch_size': 128,
+        'modes': ('train', 'test')},
 
     # Define DBInterface Params
     'dbinterface': {
@@ -85,15 +110,18 @@ params = {
         'port': 27017,
         'host': 'localhost',
         'database_name': 'ptutils_db',
-        'collection_name': 'ptutils_coll'}
+        'collection_name': 'ptutils_coll'},
+
+    'train_params': {
+        'num_steps': 100,
+    }
 }
 
-runner = Runner.from_params(**params)
+runner = ptutils.base.Runner.from_params(**params)
+runner.train()
+# new_runner = ptutils.base.Runner.from_params(**to_params)
 
-print(runner.to_params())
-
-# new_runner = Runner.from_params(**to_params)
-
+# print(runner.to_params())
 # print(new_runner)
 
 # for name, param in params.items():
