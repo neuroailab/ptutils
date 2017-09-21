@@ -1,9 +1,8 @@
 import torch
-
 from ptutils.base import Base
 
 
-class Optimizer(torch.optim.Optimizer, Base):
+class Optimizer(Base):
     def __init__(self, algorithm=None, params=None, defaults=None, **kwargs):
         """Initialize an optimizer for training.
 
@@ -40,11 +39,11 @@ class Optimizer(torch.optim.Optimizer, Base):
         # if self.params is not None:
             # optimizer_class.__init__(self, self.params, self.defaults)
 
-    # def step(self, closure=None):
-        # return self.optimizer(closure=closure)
+    def step(self, closure=None):
+        return self.optimizer.step(closure=closure)
 
-    # def zero_grad(self):
-        # return self.optimizer.zero_grad()
+    def zero_grad(self):
+        return self.optimizer.zero_grad()
 
     def compute_gradients(self, loss):
         loss.backward()

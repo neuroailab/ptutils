@@ -247,7 +247,9 @@ class DataLoaderIter(object):
         # Probably the best way to do this is by moving the sample pushing
         # to a separate thread and then just sharing the data queue
         # but signalling the end is tricky without a non-blocking API
-        raise NotImplementedError("DataLoaderIterator cannot be pickled")
+
+        # raise NotImplementedError("DataLoaderIterator cannot be pickled")
+        return self.__dict__
 
     def _shutdown_workers(self):
         if not self.shutdown:

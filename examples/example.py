@@ -113,12 +113,17 @@ params = {
         'collection_name': 'ptutils_coll'},
 
     'train_params': {
-        'num_steps': 100,
-    }
+        'num_steps': 100},
+
+    'save_params': {
+        'metric_freq': 20}
 }
 
 runner = ptutils.base.Runner.from_params(**params)
-runner.train()
+p = runner.to_params()
+print(p)
+runner = runner.from_params(**p)
+# runner.train()
 # new_runner = ptutils.base.Runner.from_params(**to_params)
 
 # print(runner.to_params())

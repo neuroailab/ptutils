@@ -73,11 +73,10 @@ class Model(Base):
     def optimizer(self, value):
         self._bases['optimizer'] = value
         if self.optimizer.params is None:
-            self.optimizer.params = self.net.parameters()
+            params = self.net.parameters()
 
-        optimizer = self.optimizer.optimizer_class(self.optimizer.params,
+        self.optimizer.optimizer = self.optimizer.optimizer_class(params,
                                                    **self.optimizer.defaults)
-        self._bases['optimizer'] = optimizer
 
     def forward(self, input):
         input_var = Variable(input)

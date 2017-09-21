@@ -138,6 +138,28 @@ class Base(object):
         if destination is None:
             destination = collections.OrderedDict()
         for name, base in self._bases.items():
+            if isinstance(base, (torch.nn.Module, torch.optim.Optimizer)):
+                try:
+                    base.state_dict(destination, prefix + name + '.')
+                except TypeError as state_error:
+                    log.warning(state_error)
+                    try:
+                        destination[name] = base.state_dict()
+                    except TypeError:
+                        pass
+            else:
+                base.to_state(destination, prefix + name + '.')
+        return destination
+
+    def _to_state(self, destination=None, prefix=''):
+        """Return a dictionary containing a whole state of the module.
+
+        TODO: CAVEAT GOES HERE
+
+        """
+        if destination is None:
+            destination = collections.OrderedDict()
+        for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
                     base.state_dict(destination, prefix + name + '.')
@@ -445,12 +467,16 @@ class Runner(Base):
         for step in range(self.train_params['num_steps']):
             model_output = self.step(model_output)
 
-            # if self.global_step % self.save_params['metric_freq'] == 0:
-            #     # Save desired results.
-            #     record = {'exp_id': self.exp_id,
-            #               'step': self.global_step,
-            #               'loss': model_output['loss'].data[0]}
-            #     self.dbinterface.save(record)
+            if self.global_step % self.save_params['metric_freq'] == 0:
+                # Save desired results.
+                record = {'exp_id': self.exp_id,
+                          'step': self.global_step,
+                          'loss': model_output['loss'].data[0],
+                          'params': self.to_params(),
+                          'state': self.to_state()}
+                # rec = jsonpickle.encode(record)
+                # self.dbinterface.collection.save({str(self.global_step): rec})
+                # self.dbinterface.save(rec)
             # if val_freq % 0:
                 # val_model_output = None
                 # for val_step in self.validation_params['num_steps']
