@@ -9,107 +9,41 @@ https://github.com/pypa/sampleproject
 from setuptools import setup, find_packages
 # To use a consistent encoding
 import os
-import codecs
+from codecs import open
 
 
-# put __version__ in the namespace
+about = {}
 here = os.path.abspath(os.path.dirname(__file__))
-exec(open(os.path.join(here, 'ptutils', 'version.py')).read())
+
+with open(os.path.join(here, 'ptutils', '__version__.py'), 'r', 'utf-8') as f:
+    exec(f.read(), about)
 
 # Get the long description from the README file
-with codecs.open(os.path.join(here, 'README.md'), encoding='utf-8') as f:
+with open('README.md', 'r', 'utf-8') as f:
     long_description = f.read()
 
+tests_require = ['nose']
+requires = ['numpy', 'torch', 'pymongo', 'gitpython']
+packages = find_packages(exclude=['contrib', 'docs', 'tests'])
+
 setup(
-    name='ptutils',
-
-    # Versions should comply with PEP440.  For a discussion on single-sourcing
-    # the version across setup.py and the project code, see
-    # https://packaging.python.org/en/latest/single_source_version.html
-    version=__version__,
-
-    description='PyTorch utilities for neural network research.',
+    url=about['__url__'],
+    name=about['__title__'],
+    author=about['__author__'],
+    license=about['__license__'],
+    version=about['__version__'],
+    keywords=about['__keywords__'],
+    description=about['__description__'],
     long_description=long_description,
-
-    # The project's main homepage.
-    url='https://github.com/neuroailab/ptutils',
-
-    # Author details
-    author='Neuroscience and Artificial Intelligence Lab',
-
-    # Choose your license
-    license='MIT',
-
-    # See https://pypi.python.org/pypi?%3Aaction=list_classifiers
+    tests_require=tests_require,
+    install_requires=requires,
+    packages=packages,
     classifiers=[
-        # How mature is this project? Common values are
-        #   3 - Alpha
-        #   4 - Beta
-        #   5 - Production/Stable
         'Development Status :: 3 - Alpha',
-
-        # Indicate who your project is intended for
         'Intended Audience :: Developers',
         'Topic :: Software Development',
-
-        # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: MIT License',
-
-        # Specify the Python versions you support here. In particular, ensure
-        # that you indicate whether you support Python 2, Python 3 or both.
         'Programming Language :: Python :: 2',
         'Programming Language :: Python :: 2.7',
     ],
-
-    # What does your project relate to?
-    keywords='pytorch deep learning',
-
-    # You can just specify the packages manually here if your project is
-    # simple. Or you can use find_packages().
-    packages=find_packages(exclude=['contrib', 'docs', 'tests']),
-
-    # Alternatively, if you want to distribute just a my_module.py, uncomment
-    # this:
-    #   py_modules=["my_module"],
-
-    # List run-time dependencies here.  These will be installed by pip when
-    # your project is installed. For an analysis of "install_requires" vs pip's
-    # requirements files see:
-    # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['h5py', 'numpy', 'torch', 'pymongo', 'gitpython'],
-
-    # Use nosetests:
-    test_suite='nose.collector',
-    tests_require=['nose'],
-
-    # List additional groups of dependencies here (e.g. development
-    # dependencies). You can install these using the following syntax,
-    # for example:
-    # $ pip install -e .[dev,test]
-    # extras_require={
-    #     'dev': ['check-manifest'],
-    #     'test': ['coverage'],
-    # },
-
-    # If there are data files included in your packages that need to be
-    # installed, specify them here.  If using Python 2.6 or less, then these
-    # have to be included in MANIFEST.in as well.
-    # package_data={
-    #     'sample': ['package_data.dat'],
-    # },
-
-    # Although 'package_data' is the preferred approach, in some case you may
-    # need to place data files outside of your packages. See:
-    # http://docs.python.org/3.4/distutils/setupscript.html#installing-additional-files # noqa
-    # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
-    # data_files=[('my_data', ['data/data_file'])],
-
-    # To provide executable scripts, use entry points in preference to the
-    # "scripts" keyword. Entry points provide cross-platform support and allow
-    # pip to create the appropriate form of executable for the target platform.
-    # entry_points={
-    #     'console_scripts': [
-    #         'sample=sample:main',
-    #     ],
-    # },
 )
