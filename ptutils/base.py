@@ -129,7 +129,7 @@ class Base(object):
                     params[key] = func.from_params(**value)
             return func(**params)
 
-    def to_state(self, destination=None, prefix=''):
+    def _to_state(self, destination=None, prefix=''):
         """Return a dictionary containing a whole state of the module.
 
         TODO: CAVEAT GOES HERE
@@ -151,7 +151,7 @@ class Base(object):
                 base.to_state(destination, prefix + name + '.')
         return destination
 
-    def _to_state(self, destination=None, prefix=''):
+    def to_state(self, destination=None, prefix=''):
         """Return a dictionary containing a whole state of the module.
 
         TODO: CAVEAT GOES HERE

@@ -116,8 +116,7 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            doc_copy = doc
-            # doc_copy = copy.deepcopy(doc)
+            doc_copy = copy.deepcopy(doc)
 
             # Make a list of any existing referenced gridfs files.
             try:
