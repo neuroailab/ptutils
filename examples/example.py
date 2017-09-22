@@ -41,20 +41,13 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
         ptutils.base.Base.__init__(self, **kwargs)
 
 
-class Optimizer(torch.optim.Optimizer, ptutils.base.Base):
-
-    def __init__(self, **kwargs):
-        # super(Optimizer, self).__init__()
-        ptutils.base.Base.__init__(self, **kwargs)
-
-
 class Sequential(nn.Sequential, ptutils.base.Base):
     pass
 
 
 # Experiment Params
 params = {
-    'func': ptutils.base.Runner,
+    'func': ptutils.runner.Runner,
     'name': 'MNISTRunner',
     'exp_id': 'mnist_example',
     'description': 'The \'Hello, Wordl!\' of deep learning',
@@ -119,11 +112,11 @@ params = {
         'metric_freq': 20}
 }
 
-runner = ptutils.base.Runner.from_params(**params)
+runner = ptutils.runner.Runner.from_params(**params)
 p = runner.to_params()
 print(p)
 runner = runner.from_params(**p)
-# runner.train()
+runner.train()
 # new_runner = ptutils.base.Runner.from_params(**to_params)
 
 # print(runner.to_params())

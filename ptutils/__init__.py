@@ -1,13 +1,21 @@
 import os
 import base
 import data
-import utils
 import model
+import utils
+import runner
 import database
 import optimizer
 import dataloader
 
-__all__ = [base, data, model, optimizer, utils, database, dataloader]
+__all__ = [base,
+           data,
+           utils,
+           model,
+           runner,
+           optimizer,
+           database,
+           dataloader]
 
 # # Put __version__ in the namespace.
 # here = os.path.abspath(os.path.dirname(__file__))
