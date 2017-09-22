@@ -1,5 +1,5 @@
 # Project specific:
-tests/data
+tests/resources
 
 # DSTORE
 *.DS_Store

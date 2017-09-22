@@ -3,9 +3,12 @@
 The deep learning 'Hello, World!' example.
 
 """
+import sys
+
 import torch
 import torch.nn as nn
 
+sys.path.insert(0, '../')
 import ptutils
 
 
@@ -108,22 +111,18 @@ params = {
     'train_params': {
         'num_steps': 100},
 
+    'validation_params': {},
+
     'save_params': {
-        'metric_freq': 20}
-}
+        'metric_freq': 20},
+
+    'load_params': {
+        'restore': False,
+        'restore_params': None,
+        'restore_mapping': None}}
+
 
 runner = ptutils.runner.Runner.from_params(**params)
 p = runner.to_params()
-print(p)
-runner = runner.from_params(**p)
-runner.train()
-# new_runner = ptutils.base.Runner.from_params(**to_params)
-
-# print(runner.to_params())
-# print(new_runner)
-
-# for name, param in params.items():
-#     print('name: {} param: {}'.format(name, param))
-
-# for name, param in model_params.items():
-#     print('name: {} param: {}'.format(name, param))
+runner = ptutils.runner.Runner.from_params(**p)
+# runner.train()
