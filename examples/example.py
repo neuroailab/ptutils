@@ -124,5 +124,5 @@ params = {
 
 runner = ptutils.runner.Runner.from_params(**params)
 p = runner.to_params()
-runner = ptutils.runner.Runner.from_params(**p)
-# runner.train()
+# runner = ptutils.runner.Runner.from_params(**p)
+runner.train()

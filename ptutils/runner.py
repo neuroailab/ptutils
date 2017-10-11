@@ -168,10 +168,10 @@ class Runner(Base):
                 # Save desired results.
                 record = {'exp_id': self.exp_id,
                           'step': self.global_step,
-                          'loss': model_output['loss'].data[0],
-                          'params': self.to_params(),
-                          'state': self.to_state()}
-                # self.dbinterface.save(record)
+                          # 'loss': model_output['loss'],
+                          # 'state': self.to_state(),
+                          'params': self.to_params()}
+                self.dbinterface.save(record)
             # if val_freq % 0:
                 # val_model_output = None
                 # for val_step in self.validation_params['num_steps']

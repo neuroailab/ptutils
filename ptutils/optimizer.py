@@ -39,6 +39,11 @@ class Optimizer(Base):
         # if self.params is not None:
             # optimizer_class.__init__(self, self.params, self.defaults)
 
+    def to_params(self):
+        params = super(Optimizer, self).to_params()
+        return {name: param for name, param in params.items()
+                if name not in ['optimizer']}
+
     def step(self, closure=None):
         return self.optimizer.step(closure=closure)
 

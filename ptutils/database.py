@@ -1,3 +1,4 @@
+import bson
 import copy
 import gridfs
 import hashlib
@@ -9,6 +10,9 @@ from bson.binary import Binary
 from bson.objectid import ObjectId
 
 import torch
+import jsonpickle
+import jsonpickle.ext.numpy as jsonpickle_numpy
+jsonpickle_numpy.register_handlers()
 
 from base import Base
 
@@ -69,6 +73,11 @@ class MongoInterface(DBInterface):
     def from_params(cls, database_name, collection_name, **params):
         return cls(database_name, collection_name, **params)
 
+    def to_params(self):
+        return {name: param for name, param in self._params.items()
+                if name in ['func', 'host', 'port', 'database_name',
+                            'collection_name']}
+
     def _close(self):
         self.client.close()
 
@@ -116,7 +125,8 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            doc_copy = copy.deepcopy(doc)
+            # doc_copy = copy.deepcopy(doc)
+            doc_copy = copy.copy(doc)
 
             # Make a list of any existing referenced gridfs files.
             try:
@@ -257,7 +267,7 @@ class MongoInterface(DBInterface):
         """
         return pickle.loads(binary)
 
-    def _replace(self, document, replace='.', replacement='__'):
+    def _replace(self, document, replace='.', replacement='__', mode='enc'):
         """Replace `replace` in dictionary keys with `replacement`."""
         for (key, value) in document.items():
             new_key = key.replace(replace, replacement)
@@ -266,14 +276,41 @@ class MongoInterface(DBInterface):
                                                   replace=replace,
                                                   replacement=replacement)
             else:
-                document[new_key] = document.pop(key)
+                if mode == 'enc':
+                    document[new_key] = jsonpickle.encode(document.pop(key))
+                else:
+                    document[new_key] = jsonpickle.decode(document.pop(key))
+
         return document
 
     def _mongoify(self, document):
-        return self._replace(document)
+        try:
+            bson.BSON.encode(document)
+        except Exception:
+            for key, value in document.items():
+                try:
+                    bson.BSON.encode(value)
+                except Exception:
+                    document[key] = jsonpickle.encode(value)
+        return document
+
 
     def _de_mongoify(self, document):
-        return self._replace(document, replace='__', replacement='.')
+        try:
+            document = jsonpickle.decode(document)
+        except Exception:
+            for key, value in document.items():
+                try:
+                    document[key] = jsonpickle.decode(value)
+                except Exception:
+                    pass
+        return document
+
+    # def _mongoify(self, document):
+    #     return self._replace(document)
+
+    # def _de_mongoify(self, document):
+    #     return self._replace(document, replace='__', replacement='.', mode='dec')
 
     def _load_tensor(self, document):
         """Replace ObjectIds with their corresponding gridFS data.
