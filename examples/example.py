@@ -109,7 +109,7 @@ params = {
         'collection_name': 'ptutils'},
 
     'train_params': {
-        'num_steps': 100},
+        'num_steps': 40},
 
     'validation_params': {},
 

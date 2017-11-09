@@ -289,11 +289,22 @@ class MongoInterface(DBInterface):
         except Exception:
             for key, value in document.items():
                 try:
-                    bson.BSON.encode(value)
+                    document[key] = self._mongoify(value)
                 except Exception:
                     document[key] = jsonpickle.encode(value)
         return document
 
+
+    # def __mongoify(self, document):
+    #     try:
+    #         bson.BSON.encode(document)
+    #     except Exception:
+    #         for key, value in document.items():
+    #             try:
+    #                 bson.BSON.encode(value)
+    #             except Exception:
+    #                 document[key] = jsonpickle.encode(value)
+    #     return document
 
     def _de_mongoify(self, document):
         try:
@@ -301,9 +312,9 @@ class MongoInterface(DBInterface):
         except Exception:
             for key, value in document.items():
                 try:
-                    document[key] = jsonpickle.decode(value)
+                    document[key] = self._de_mongoify(value)
                 except Exception:
-                    pass
+                    document[key] = jsonpickle.decode(value)
         return document
 
     # def _mongoify(self, document):
