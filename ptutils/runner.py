@@ -165,11 +165,12 @@ class Runner(Base):
             model_output = self.step(model_output)
 
             if self.global_step % self.save_params['metric_freq'] == 0:
+
                 # Save desired results.
                 record = {'exp_id': self.exp_id,
                           'step': self.global_step,
                           # 'loss': model_output['loss'],
-                          # 'state': self.to_state(),
+                          'state': self.to_state(),
                           'params': self.to_params()}
                 self.dbinterface.save(record)
             # if val_freq % 0:
@@ -184,7 +185,7 @@ class Runner(Base):
     def train_from_params(self):
         """Run the execution of an experiment.
 
-        This is the primary entrance to the Trainer class.
+        This is the primary entrance to the Runner class.
 
         """
         # Enforce that all Runners have an exp_id.
@@ -196,7 +197,7 @@ class Runner(Base):
             self.load_run()
 
         # Prepare devices.
-        self.cuda(devices=[0, 1])
+        self.base_cuda()
 
         # Start the main training loop.
         self.train()

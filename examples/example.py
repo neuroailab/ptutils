@@ -71,8 +71,8 @@ params = {
     'model': {
         'func': ptutils.model.Model,
         'name': 'MNIST',
-        'use_cuda': False,
-        # 'devices': [0, 1],
+        'use_cuda': True,
+        'devices': 0,
 
         'net': {
             'func': MNIST,
@@ -109,20 +109,21 @@ params = {
         'collection_name': 'ptutils'},
 
     'train_params': {
-        'num_steps': 40},
+        'num_steps': 5},
 
     'validation_params': {},
 
     'save_params': {
-        'metric_freq': 20},
+        'metric_freq': 1},
 
     'load_params': {
-        'restore': False,
+        'restore': True,
         'restore_params': None,
         'restore_mapping': None}}
 
 
 runner = ptutils.runner.Runner.from_params(**params)
-p = runner.to_params()
-# runner = ptutils.runner.Runner.from_params(**p)
-runner.train()
+runner.train_from_params()
+
+
+print "done"
