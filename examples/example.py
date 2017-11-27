@@ -1,6 +1,6 @@
-"""MNIST Training example.
+"""Training MNIST with ptutils
 
-The deep learning 'Hello, World!' example.
+The 'Hello, World!' of deep learning.
 
 """
 import sys
@@ -71,8 +71,8 @@ params = {
     'model': {
         'func': ptutils.model.Model,
         'name': 'MNIST',
-        'use_cuda': False,
-        # 'devices': [0, 1],
+        'use_cuda': True,
+        'devices': 0,
 
         'net': {
             'func': MNIST,
@@ -105,24 +105,25 @@ params = {
         'name': 'mongo',
         'port': 27017,
         'host': 'localhost',
-        'database_name': 'ptutils_db',
-        'collection_name': 'ptutils_coll'},
+        'database_name': 'ptutils',
+        'collection_name': 'ptutils'},
 
     'train_params': {
-        'num_steps': 100},
+        'num_steps': 5},
 
     'validation_params': {},
 
     'save_params': {
-        'metric_freq': 20},
+        'metric_freq': 1},
 
     'load_params': {
-        'restore': False,
+        'restore': True,
         'restore_params': None,
         'restore_mapping': None}}
 
 
 runner = ptutils.runner.Runner.from_params(**params)
-p = runner.to_params()
-runner = ptutils.runner.Runner.from_params(**p)
-runner.train()
+runner.train_from_params()
+
+
+print "done"

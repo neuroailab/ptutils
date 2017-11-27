@@ -33,7 +33,7 @@ class Model(Base):
         # dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 
         # if use_cuda:
-        #     self.model.cuda()
+        #     self.net.cuda()
         #     self.criterion.cuda()
 
         # # Select mode
@@ -81,10 +81,7 @@ class Model(Base):
     def forward(self, input):
         input_var = Variable(input)
         input_var = input_var.cuda(self.devices) if self.use_cuda else input_var
-        if self.devices is not None:
-            return data_parallel(self.net, input_var, list(self.devices))
-        else:
-            return self.net(input_var)
+        return self.net(input_var)
 
     def inference(self, input):
         return self.forward(input)

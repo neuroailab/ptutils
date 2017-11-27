@@ -126,6 +126,10 @@ class MNISTProvider(DataProvider):
                                           batch_size=batch_size,
                                           shuffle=(mode == 'train')))
 
+    def to_params(self):
+        return {name: param for name, param in self._params.items()
+                if name not in ['dataloader']}
+
     def provide(self, model_output):
         return next(self.dataloader)
 

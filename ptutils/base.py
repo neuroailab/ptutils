@@ -108,12 +108,14 @@ class Base(object):
     @classmethod
     def from_params(cls, **params):
         if 'func' in params:
+            # params is itself a base
             func = params['func']
             for key, value in params.items():
                 if isinstance(value, dict):
                     params[key] = func.from_params(**value)
             return func(**params)
         else:
+            # params isn't a base
             return params
 
     @classmethod
@@ -234,7 +236,7 @@ class Base(object):
         fn(self)
         return self
 
-    def cuda(self, devices=None):
+    def base_cuda(self, devices=None):
         """Move all Bases to the GPU.
 
         Args:
@@ -249,9 +251,9 @@ class Base(object):
         for base in self._bases.values():
             base.use_cuda = True
             if isinstance(base, torch.nn.Module):
-                base.cuda()
+                base.cuda(self.devices)
             else:
-                base.cuda(devices=self.devices)
+                base.base_cuda(devices=self.devices)
 
     def cpu(self):
         """Move all Bases to the CPU."""
@@ -265,7 +267,7 @@ class Base(object):
         if isinstance(obj, (list, tuple)):
             return type(obj)([self.cast(o) for o in obj])
         else:
-            obj = obj.cuda() if self.use_cuda else obj
+            obj = obj.cuda() if self.use_cuda else obj #this cuda call may need to be changed
             return obj.type(self.dtype) if dtype is None else obj.type(dtype)
 
     def __setattr__(self, name, value):
