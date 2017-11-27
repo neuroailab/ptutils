@@ -9,7 +9,8 @@ import inspect
 import logging
 import datetime
 import pkg_resources
-import cPickle as pickle
+# import cPickle as pickle
+import pickle
 
 import git
 import numpy as np

@@ -1,7 +1,7 @@
 """ptutils Runner."""
 
 from ptutils.base import Base
-from error import StepError, ExpIdError
+from .error import StepError, ExpIdError
 
 
 class Runner(Base):

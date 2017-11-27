@@ -1,5 +1,5 @@
-ptutils.serializers package
-===========================
+ptutils\.serializers package
+============================
 
 Module contents
 ---------------
