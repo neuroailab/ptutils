@@ -7,95 +7,94 @@ Subpackages
 .. toctree::
 
     ptutils.serializers
-    ptutils.tests
 
 Submodules
 ----------
 
-ptutils.base module
--------------------
+ptutils\.base module
+--------------------
 
 .. automodule:: ptutils.base
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.containers module
--------------------------
+ptutils\.containers module
+--------------------------
 
 .. automodule:: ptutils.containers
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.data module
--------------------
+ptutils\.data module
+--------------------
 
 .. automodule:: ptutils.data
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.database module
------------------------
+ptutils\.database module
+------------------------
 
 .. automodule:: ptutils.database
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.dataloader module
--------------------------
+ptutils\.dataloader module
+--------------------------
 
 .. automodule:: ptutils.dataloader
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.error module
---------------------
+ptutils\.error module
+---------------------
 
 .. automodule:: ptutils.error
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.model module
---------------------
+ptutils\.model module
+---------------------
 
 .. automodule:: ptutils.model
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.optimizer module
-------------------------
+ptutils\.optimizer module
+-------------------------
 
 .. automodule:: ptutils.optimizer
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.support module
+ptutils\.runner module
 ----------------------
+
+.. automodule:: ptutils.runner
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+ptutils\.support module
+-----------------------
 
 .. automodule:: ptutils.support
     :members:
     :undoc-members:
     :show-inheritance:
 
-ptutils.utils module
---------------------
+ptutils\.utils module
+---------------------
 
 .. automodule:: ptutils.utils
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-ptutils.version module
-----------------------
-
-.. automodule:: ptutils.version
     :members:
     :undoc-members:
     :show-inheritance:

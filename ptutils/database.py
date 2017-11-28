@@ -5,7 +5,8 @@ import hashlib
 import datetime
 import numpy as np
 import pymongo as pm
-import cPickle as pickle
+import pickle
+# import cPickle as pickle
 from bson.binary import Binary
 from bson.objectid import ObjectId
 
@@ -14,7 +15,7 @@ import jsonpickle
 import jsonpickle.ext.numpy as jsonpickle_numpy
 jsonpickle_numpy.register_handlers()
 
-from base import Base
+from .base import Base
 
 
 class DBInterface(Base):

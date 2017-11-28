@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from error import StepError, ExpIdError, ParamError
+from .error import StepError, ExpIdError, ParamError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -52,7 +52,7 @@ class Base(object):
         for i, arg in enumerate(args):
 
             if isinstance(arg, Base):
-                self.__setattr__(arg._name, arg)
+                self.__setattr__(arg.name, arg)
 
             if isinstance(arg, collections.Mapping):
                 for key, value in arg.items():
