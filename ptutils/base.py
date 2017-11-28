@@ -186,7 +186,6 @@ class Base(object):
 
         Returns:
             Base: self.
-
         Raises:
             TypeError: restore_params type unsupported.
 

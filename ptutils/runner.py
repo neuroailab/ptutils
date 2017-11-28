@@ -167,11 +167,13 @@ class Runner(Base):
             if self.global_step % self.save_params['metric_freq'] == 0:
 
                 # Save desired results.
+
+                
                 record = {'exp_id': self.exp_id,
-                          'step': self.global_step,
-                          # 'loss': model_output['loss'],
-                          'state': self.to_state(),
-                          'params': self.to_params()}
+                'step': self.global_step,
+                'loss': model_output['loss'],
+                'state': self.to_state(),
+                'params': self.to_params()}
                 self.dbinterface.save(record)
             # if val_freq % 0:
                 # val_model_output = None
@@ -215,9 +217,9 @@ class Runner(Base):
         pass
 
     def load_run(self):
-        params = self.dbinterface.load({'exp_id': self.exp_id})
+        all_results = self.dbinterface.load({unicode("exp_id"): unicode(self.exp_id)})
         # TODO: Raise exc if not found of exp_id collisions.
-        if params is not None:
-            return self.from_params(**params)
-        else:
-            return self
+        if all_results is not None:
+            params = all_results[0]['params']
+            self.from_params(**params)
+            self.from_state(all_results[0]['state']) #load most recent run

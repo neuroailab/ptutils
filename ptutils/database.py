@@ -66,7 +66,7 @@ class MongoInterface(DBInterface):
 
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
-        self.collection = self.database[self.collection_name]
+        self.collection = self.database[self.collection_name + '.files']
         self.filesystem = gridfs.GridFS(self.database)
 
     @classmethod
@@ -203,7 +203,7 @@ class MongoInterface(DBInterface):
 
         """
         query = self._mongoify(query)
-        results = self.collection.find(query)
+        results = self.collection.find(query, sort=[('insertion_date', -1)])
 
         if get_tensors:
             all_results = [self._de_mongoify(
@@ -211,15 +211,16 @@ class MongoInterface(DBInterface):
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
 
-        if all_results:
-            if len(all_results) > 1:
-                return all_results
-            elif len(all_results) == 1:
-                return all_results[0]
-            else:
-                return None
-        else:
-            return None
+        return all_results
+        # if all_results:
+        #     if len(all_results) > 1:
+        #         return all_results
+        #     elif len(all_results) == 1:
+        #         return all_results[0]
+        #     else:
+        #         return None
+        # else:
+        #     return None
 
     def delete(self, object_id):
         """Delete a specific document from the collection based on the objectId.
@@ -266,8 +267,8 @@ class MongoInterface(DBInterface):
 
         """
         return pickle.loads(binary)
-
-    def _replace(self, document, replace='.', replacement='__', mode='enc'):
+        
+    def _replace(self, document, replace='.', replacement='__'):
         """Replace `replace` in dictionary keys with `replacement`."""
         for (key, value) in document.items():
             new_key = key.replace(replace, replacement)
@@ -276,52 +277,47 @@ class MongoInterface(DBInterface):
                                                   replace=replace,
                                                   replacement=replacement)
             else:
-                if mode == 'enc':
-                    document[new_key] = jsonpickle.encode(document.pop(key))
-                else:
-                    document[new_key] = jsonpickle.decode(document.pop(key))
-
+                document[new_key] = document.pop(key)
         return document
 
     def _mongoify(self, document):
-        try:
-            bson.BSON.encode(document)
-        except Exception:
-            for key, value in document.items():
-                try:
-                    document[key] = self._mongoify(value)
-                except Exception:
-                    document[key] = jsonpickle.encode(value)
+        """Modify the document so that it can be stored in MongoDB.
+            
+        Called before saving to the database. Replaces '.' (which are rejected
+        by mongo) in keys with '__'  and serializes objects that are unserializable.
+
+        Args:
+            document: dict to be saved in mongo
+
+        """
+        for (key, value) in document.items():
+            new_key = key.replace('.', '__') # mongo cannot use '.' in doc key
+            popped_value = document.pop(key)
+            if isinstance(value, dict):
+                document[new_key] = self._mongoify(popped_value)
+            else:
+                if isinstance(value, type): #mongo cannot natively serialize these; use jsonpickle
+                    document[new_key] = jsonpickle.encode(popped_value)
+                else:
+                    document[new_key] = popped_value
         return document
-
-
-    # def __mongoify(self, document):
-    #     try:
-    #         bson.BSON.encode(document)
-    #     except Exception:
-    #         for key, value in document.items():
-    #             try:
-    #                 bson.BSON.encode(value)
-    #             except Exception:
-    #                 document[key] = jsonpickle.encode(value)
-    #     return document
 
     def _de_mongoify(self, document):
-        try:
-            document = jsonpickle.decode(document)
-        except Exception:
-            for key, value in document.items():
+        # untested
+        for (key, value) in document.items():
+            new_key = key.replace('__', '.') # mongo cannot use '.' in doc key
+            popped_value = document.pop(key)
+            if isinstance(value, dict):
+                document[new_key] = self._de_mongoify(popped_value)
+            else:
                 try:
-                    document[key] = self._de_mongoify(value)
-                except Exception:
-                    document[key] = jsonpickle.decode(value)
+                    # these should be classes that were serialized with jsonpickle
+                    # before being stored in the database
+                    document[new_key] = jsonpickle.decode(popped_value)
+                except:
+                    document[new_key] = popped_value
         return document
 
-    # def _mongoify(self, document):
-    #     return self._replace(document)
-
-    # def _de_mongoify(self, document):
-    #     return self._replace(document, replace='__', replacement='.', mode='dec')
 
     def _load_tensor(self, document):
         """Replace ObjectIds with their corresponding gridFS data.

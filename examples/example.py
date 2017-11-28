@@ -52,7 +52,7 @@ class Sequential(nn.Sequential, ptutils.base.Base):
 params = {
     'func': ptutils.runner.Runner,
     'name': 'MNISTRunner',
-    'exp_id': 'mnist_example',
+    'exp_id': "mnist_example_test",
     'description': 'The \'Hello, Wordl!\' of deep learning',
     'Notes':
         """
@@ -72,7 +72,7 @@ params = {
         'func': ptutils.model.Model,
         'name': 'MNIST',
         'use_cuda': True,
-        'devices': 0,
+        'devices': 1,
 
         'net': {
             'func': MNIST,
@@ -89,7 +89,9 @@ params = {
             'params': None,
             'defaults': {
                 'momentum': 0.9,
-                'lr': 0.05}}},
+                'lr': 0.05}
+                }
+                },
 
     # Define DataProvider Params
     'dataprovider': {
@@ -123,6 +125,7 @@ params = {
 
 
 runner = ptutils.runner.Runner.from_params(**params)
+# runner = runner.from_params(**runner.to_params())
 runner.train_from_params()
 
 

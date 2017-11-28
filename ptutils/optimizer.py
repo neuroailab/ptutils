@@ -23,7 +23,7 @@ class Optimizer(Base):
                       params=params,
                       defaults=defaults,
                       **kwargs)
-        if isinstance(algorithm, str):
+        if isinstance(algorithm, (str, unicode)):
             optimizer_class = getattr(torch.optim, algorithm, None)
             if optimizer_class is None:
                 # Look for algorithm in extensions
@@ -62,18 +62,3 @@ class Optimizer(Base):
 
     def __repr__(self):
         return Base.__repr__(self)
-
-# class Optimizer(torch.optim.Optimizer):
-#     __name__ = 'optimizer'
-
-#     def __init__(self, optimizer):
-#         base.Optimizer.__init__(self)
-#         self.state = defaultdict(dict)
-#         self.params = []
-#         self.optimizer_cls = optimizer
-
-#     def step(self, closure=None):
-#         return self.optimizer(closure=closure)
-
-#     def zero_grads(self):
-#         return self.optimizer.zero_grads()
