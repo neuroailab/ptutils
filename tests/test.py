@@ -34,7 +34,7 @@ sys.path.insert(0, '../')
 from ptutils import base, data, error, model, runner, database
 
 LOG_LEVEL = 'WARNING'
-MONOGO_PORT = 27017
+MONGO_PORT = 27017
 
 
 def setUpModule():
@@ -392,7 +392,7 @@ class TestBase(unittest.TestCase):
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda(self):
         base = self.setup_base()
-        base.cuda()
+        base.base_cuda()
 
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_base_child_with_module_child(self):
@@ -400,26 +400,26 @@ class TestBase(unittest.TestCase):
         base = self.test_class()
         child = self.test_class()
         base.child = child
-        base.devices = [0, 1]
+        base.devices = 0
         base.child.linear = torch.nn.Linear(2, 2)
-        base.cuda()
+        base.base_cuda()
 
         self.assertTrue(base.use_cuda)
         self.assertTrue(base.child.use_cuda)
-        self.assertEqual(base.devices, [0, 1])
-        self.assertEqual(base.child.devices, [0, 1])
+        self.assertEqual(base.devices, 0)
+        self.assertEqual(base.child.devices, 0)
 
 
         base = self.test_class()
         child = self.test_class()
         base.child = child
-        base.devices = [0, 1]
-        base.child.devices = [2, 3]
+        base.devices = 0
+        base.child.devices = 0
         base.child.linear = torch.nn.Linear(2, 2)
-        base.cuda()
+        base.base_cuda()
 
-        self.assertEqual(base.devices, [0, 1])
-        self.assertEqual(base.child.devices, [2, 3])
+        self.assertEqual(base.devices, 0)
+        self.assertEqual(base.child.devices, 0)
 
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_base_and_module_child(self):
@@ -429,7 +429,7 @@ class TestBase(unittest.TestCase):
         linear = torch.nn.Linear(2, 2)
         base.child = child
         base.linear = linear
-        base.cuda()
+        base.base_cuda()
 
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_module_child_and_base_child_with_module_child(self):
@@ -441,7 +441,7 @@ class TestBase(unittest.TestCase):
         base.child = child
         base.linear = linear
         base.child.child_linear = child_linear
-        base.cuda()
+        base.base_cuda()
 
     # Test cpu -----------------------------------------------------------------
 
@@ -496,7 +496,7 @@ class Test(unittest.TestCase):
     """Test class with convenient database access."""
 
     # Port on which the MongoDB instance to be used by tests needs to be running.
-    port = MONOGO_PORT
+    port = MONGO_PORT
     # Host on which the MongoDB instance to be used by tests needs to be running.
     host = 'localhost'
     # Name of the mongodb database where results will be stored by tests.
@@ -607,7 +607,7 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save'})
-        self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r[0])
+        self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r.next())
 
     def test_save_numpy_array(self):
         array = np.array([1, 2, 3])
@@ -615,7 +615,7 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_numpy_array'})
-        self.assertIsInstance(r[0]['array'], ObjectId)
+        self.assertIsInstance(r.next()['array'], ObjectId)
 
     def test_save_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
@@ -623,7 +623,7 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_torch_tensor'})
-        self.assertIsInstance(r[0]['tensor'], ObjectId)
+        self.assertIsInstance(r.next()['tensor'], ObjectId)
 
     def test_save_state(self):
         b = base.Base()
@@ -634,28 +634,28 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_state'})
-        for param in r[0]['state'].values():
+        for param in r.next()['state'].values():
             self.assertIsInstance(param, ObjectId)
 
     def test_load(self):
         doc = {'exp_id': 'test_load', 'step': 0}
         self.dbinterface.save(doc)
         r = self.dbinterface.load({'exp_id': 'test_load'})
-        self.assertDictContainsSubset({'exp_id': 'test_load', 'step': 0}, r)
+        self.assertDictContainsSubset({'exp_id': 'test_load', 'step': 0}, r[0])
 
     def test_load_numpy_array(self):
         array = np.array([1, 2, 3])
         doc = {'exp_id': 'test_load_numpy_array', 'array': array}
         self.dbinterface.save(doc)
         r = self.dbinterface.load({'exp_id': 'test_load_numpy_array'})
-        self.assertTrue(np.array_equal(doc['array'], r['array']))
+        self.assertTrue(np.array_equal(doc['array'], r[0]['array']))
 
     def test_load_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
         doc = {'exp_id': 'test_load_torch_tensor', 'tensor': tensor}
         self.dbinterface.save(doc)
         r = self.dbinterface.load({'exp_id': 'test_load_torch_tensor'})
-        self.assertTrue(torch.equal(doc['tensor'], r['tensor']))
+        self.assertTrue(torch.equal(doc['tensor'], r[0]['tensor']))
 
     def test_load_state(self):
         b = base.Base()
@@ -665,7 +665,7 @@ class TestMongoInterface(Test):
         doc = {'exp_id': 'test_load_state', 'state': state}
         self.dbinterface.save(doc)
         r = self.dbinterface.load({'exp_id': 'test_load_state'})
-        restored_state = r['state']
+        restored_state = r[0]['state']
         self.assertItemsEqual(state.keys(), restored_state.keys())
         for name in state:
             self.assertTrue(torch.equal(state[name], restored_state[name]))
@@ -813,7 +813,7 @@ class TestRunner(Test):
         """Create params that can be used for training."""
         model_params = {
             'func': model.MNIST,
-            'devices': [0, 1],
+            'devices': 0,
             'net': '',
             'criterion': '',
             'optimizer': ''}
@@ -847,7 +847,7 @@ class TestRunner(Test):
         params = {
             'exp_id': 'exp',
             'use_cuda': True,
-            'devices': [0, 1, 2, 3],
+            'devices': 0,
             'num_steps': 500,
             'save_params': save_params,
             'load_params': load_params,
