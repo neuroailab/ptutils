@@ -168,12 +168,13 @@ class Runner(Base):
 
                 # Save desired results.
 
-                
+
                 record = {'exp_id': self.exp_id,
                 'step': self.global_step,
                 'loss': model_output['loss'],
                 'state': self.to_state(),
-                'params': self.to_params()}
+                'params': self.to_params(),
+                }
                 self.dbinterface.save(record)
             # if val_freq % 0:
                 # val_model_output = None

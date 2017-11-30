@@ -71,7 +71,7 @@ params = {
     'model': {
         'func': ptutils.model.Model,
         'name': 'MNIST',
-        'use_cuda': True,
+        'use_cuda': False,
         'devices': 1,
 
         'net': {
@@ -105,18 +105,18 @@ params = {
     'dbinterface': {
         'func': ptutils.database.MongoInterface,
         'name': 'mongo',
-        'port': 27017,
+        'port': 29101,
         'host': 'localhost',
         'database_name': 'ptutils',
         'collection_name': 'ptutils'},
 
     'train_params': {
-        'num_steps': 5},
+        'num_steps': 100},
 
     'validation_params': {},
 
     'save_params': {
-        'metric_freq': 1},
+        'metric_freq': 50},
 
     'load_params': {
         'restore': True,
@@ -125,8 +125,10 @@ params = {
 
 
 runner = ptutils.runner.Runner.from_params(**params)
-# runner = runner.from_params(**runner.to_params())
 runner.train_from_params()
+print('Training steps complete: {}'.format(runner.global_step))
+runner.train_params['num_steps'] = 200
+runner.train_from_params()
+print('Training steps complete: {}'.format(runner.global_step))
 
 
-print "done"

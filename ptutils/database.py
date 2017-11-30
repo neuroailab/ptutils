@@ -127,8 +127,8 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            doc_copy = copy.deepcopy(doc)
-            # doc_copy = copy.copy(doc)
+            # doc_copy = copy.deepcopy(doc)
+            doc_copy = copy.copy(doc)
 
             # Make a list of any existing referenced gridfs files.
             try:
@@ -269,7 +269,7 @@ class MongoInterface(DBInterface):
 
         """
         return pickle.loads(binary)
-        
+
     def _replace(self, document, replace='.', replacement='__'):
         """Replace `replace` in dictionary keys with `replacement`."""
         for (key, value) in document.items():
@@ -284,7 +284,7 @@ class MongoInterface(DBInterface):
 
     def _mongoify(self, document):
         """Modify the document so that it can be stored in MongoDB.
-            
+
         Called before saving to the database. Replaces '.' (which are rejected
         by mongo) in keys with '__'  and serializes objects that are unserializable.
 
