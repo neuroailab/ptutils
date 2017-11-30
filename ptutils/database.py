@@ -67,7 +67,8 @@ class MongoInterface(DBInterface):
 
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
-        self.collection = self.database[self.collection_name + '.files']
+        #self.collection = self.database[self.collection_name + '.files']
+        self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
 
     @classmethod

@@ -34,7 +34,7 @@ sys.path.insert(0, '../')
 from ptutils import base, data, error, model, runner, database
 
 LOG_LEVEL = 'WARNING'
-MONGO_PORT = 27017
+MONGO_PORT = 29101
 
 
 def setUpModule():
@@ -580,7 +580,9 @@ class TestMongoInterface(Test):
 
     def setUp(self):
         self.dbinterface = database.MongoInterface(self.database_name,
-                                                   self.collection_name)
+                                                   self.collection_name,
+						   self.host,
+                                                   self.port)
 
     def tearDown(self):
         del self.dbinterface
@@ -607,6 +609,7 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save'})
+        print(self.conn[self.database_name].collection_names())
         self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r.next())
 
     def test_save_numpy_array(self):
