@@ -17,7 +17,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-from .error import StepError, ExpIdError, ParamError
+from .error import StepError, ExpIDError, ParamError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)

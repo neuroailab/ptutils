@@ -1,7 +1,13 @@
 """ptutils Runner."""
 
+import logging
+
 from ptutils.base import Base
-from .error import StepError, ExpIdError
+from .error import StepError, ExpIDError
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel('DEBUG')
 
 
 class Runner(Base):
@@ -54,7 +60,7 @@ class Runner(Base):
         self.train_params = train_params
 
         self.exp_id = exp_id
-        self.global_step = 0
+        self.global_step = kwargs.get('global_step', 0)
 
 # -- Runner Properties ---------------------------------------------------------
 
@@ -68,6 +74,7 @@ class Runner(Base):
 
     @property
     def global_step(self):
+        self._params['global_step']
         return self._params['global_step']
 
     @global_step.setter
@@ -149,8 +156,8 @@ class Runner(Base):
         data = self.dataprovider.provide(prev_output)
         output = self.model.step(data)
 
-        print('step: {}; loss: {}'.format(self.global_step,
-                                          output['loss'].data[0]))
+        log.info('step: {}; loss: {}'.format(self.global_step,
+                                             output['loss'].data[0]))
         return output
 
     def train(self):
@@ -161,25 +168,24 @@ class Runner(Base):
 
         """
         model_output = None
-        for step in range(self.train_params['num_steps']):
+        for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
 
             if self.global_step % self.save_params['metric_freq'] == 0:
 
                 # Save desired results.
-
-
                 record = {'exp_id': self.exp_id,
-                'step': self.global_step,
-                'loss': model_output['loss'],
-                'state': self.to_state(),
-                'params': self.to_params(),
-                }
+                          'step': self.global_step,
+                          'loss': model_output['loss'],
+                          'state': self.to_state(),
+                          'params': self.to_params(),
+                          }
                 self.dbinterface.save(record)
+
             # if val_freq % 0:
                 # val_model_output = None
                 # for val_step in self.validation_params['num_steps']
-                    # val_model_output = self.validation_step(val_model_output)
+                # val_model_output = self.validation_step(val_model_output)
             # You may want to do additional computation
             # in between steps.
 
@@ -191,36 +197,53 @@ class Runner(Base):
         This is the primary entrance to the Runner class.
 
         """
-        # Enforce that all Runners have an exp_id.
         if self.exp_id is None:
-                raise ExpIdError('Cannot run an experiment without an exp_id')
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
 
         # Restore previous run.
         if self.load_params['restore']:
-            self.load_run()
+            self = self.load_run()
 
         # Prepare devices.
         self.base_cuda()
 
-        # Start the main training loop.
-        self.train()
+        # Start the main training loop, if desired.
+        if self.train_params['train']:
+            self.train()
+        else:
+            log.info('Skipping training.')
+
+        log.info('Training complete!')
+
+        record = {'exp_id': self.exp_id,
+                  'step': self.global_step,
+                  'state': self.to_state(),
+                  'params': self.to_params(),
+                  }
+        self.dbinterface.save(record)
 
     def predict(self):
         # TODO
-        pass
+        raise NotImplementedError
 
     def test(self):
         # TODO
-        pass
+        raise NotImplementedError
 
     def test_from_params(self):
         # TODO
         pass
 
     def load_run(self):
-        all_results = self.dbinterface.load({unicode("exp_id"): unicode(self.exp_id)})
+        all_results = self.dbinterface.load({'exp_id': self.exp_id})
         # TODO: Raise exc if not found of exp_id collisions.
-        if all_results is not None:
-            params = all_results[0]['params']
-            self.from_params(**params)
-            self.from_state(all_results[0]['state']) #load most recent run
+
+        if all_results:
+            result = all_results[0]  # Load most recent run.
+            self = self.from_params(**result['params'])
+            self.from_state(result['state'])
+            log.info('Resuming {} training from step: {}'.format(self.exp_id, self.global_step))
+
+        return self

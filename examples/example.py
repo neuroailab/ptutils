@@ -1,4 +1,4 @@
-"""Training MNIST with ptutils
+"""Training MNIST with ptutils.
 
 The 'Hello, World!' of deep learning.
 
@@ -71,14 +71,12 @@ params = {
     'model': {
         'func': ptutils.model.Model,
         'name': 'MNIST',
-        'use_cuda': False,
+        'use_cuda': True,
         'devices': 1,
 
         'net': {
             'func': MNIST,
-            'name': 'mnist',
-            'layer3': Sequential(
-                nn.Conv2d(1, 16, (5, 5)))},
+            'name': 'mnist'},
         'criterion': {
             'func': Criterion,
             'name': 'crossentropy'},
@@ -89,9 +87,7 @@ params = {
             'params': None,
             'defaults': {
                 'momentum': 0.9,
-                'lr': 0.05}
-                }
-                },
+                'lr': 0.05}}},
 
     # Define DataProvider Params
     'dataprovider': {
@@ -105,18 +101,19 @@ params = {
     'dbinterface': {
         'func': ptutils.database.MongoInterface,
         'name': 'mongo',
-        'port': 29101,
+        'port': 27017,
         'host': 'localhost',
         'database_name': 'ptutils',
         'collection_name': 'ptutils'},
 
     'train_params': {
-        'num_steps': 100},
+        'num_steps': 50,
+        'train': True},
 
     'validation_params': {},
 
     'save_params': {
-        'metric_freq': 50},
+        'metric_freq': 25},
 
     'load_params': {
         'restore': True,
@@ -126,9 +123,8 @@ params = {
 
 runner = ptutils.runner.Runner.from_params(**params)
 runner.train_from_params()
-print('Training steps complete: {}'.format(runner.global_step))
-runner.train_params['num_steps'] = 200
+
+runner = ptutils.runner.Runner.from_params(**params)
+runner.train_params['num_steps'] = 100
 runner.train_from_params()
-print('Training steps complete: {}'.format(runner.global_step))
-
-
+runner.dbinterface.collection.drop()

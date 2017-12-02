@@ -34,7 +34,7 @@ sys.path.insert(0, '../')
 from ptutils import base, data, error, model, runner, database
 
 LOG_LEVEL = 'WARNING'
-MONGO_PORT = 29101
+MONGO_PORT = 27017
 
 
 def setUpModule():
@@ -133,9 +133,11 @@ class TestBase(unittest.TestCase):
     # Test from_params --------------------------------------------------------
 
     def test_from_params(self):
-        params = {'test_param_name': 'test_param_value',
-                  'test_base_name': self.test_class()}
+        params = {'func': self.test_class,
+                  'test_param_name': 'test_param_value',
+                  'test_base_name': self.test_class}
         base = self.test_class.from_params(**params)
+        self.assertDictContainsSubset(params, base.to_params())
 
     # def test_from_params(self):
         # params = {'invalid_param_key': 'invalid_param_value'}
@@ -581,7 +583,7 @@ class TestMongoInterface(Test):
     def setUp(self):
         self.dbinterface = database.MongoInterface(self.database_name,
                                                    self.collection_name,
-						   self.host,
+                                                   self.host,
                                                    self.port)
 
     def tearDown(self):
@@ -738,6 +740,16 @@ class TestRunner(Test):
     def tearDown(self):
         """Tear Down is called after _each_ test method is executed."""
         pass
+
+    def test_from_params(self):
+        params = {'func': self.test_class,
+                  'exp_id': 'test_exp_id',
+                  'global_step': 10}
+        print(self.test_class)
+        runner_obj = self.test_class.from_params(**params)
+        print(type(runner_obj))
+        print(runner_obj.to_params())
+        self.assertDictContainsSubset(params, runner_obj.to_params())
 
     @unittest.skip('skipping...')
     def test_training_from_objects(self):
