@@ -23,7 +23,7 @@ class LoadError(Exception):
     pass
 
 
-class ExpIdError(Exception):
+class ExpIDError(Exception):
     """Exception class to raise if there is en error with the experiment id."""
 
     pass
