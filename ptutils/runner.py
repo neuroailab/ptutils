@@ -3,7 +3,7 @@
 import logging
 
 from ptutils.base import Base
-from .error import StepError, ExpIDError
+from .error import StepError, ExpIDError, LoadError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -180,6 +180,7 @@ class Runner(Base):
                           'state': self.to_state(),
                           'params': self.to_params(),
                           }
+                print("SAVING step {}".format(self.global_step))
                 self.dbinterface.save(record)
 
             # if val_freq % 0:
@@ -201,10 +202,15 @@ class Runner(Base):
             error_msg = 'Cannot run an experiment without an exp_id'
             log.critical(error_msg)
             raise ExpIDError(error_msg)
-
+        
         # Restore previous run.
         if self.load_params['restore']:
             self = self.load_run()
+        elif len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
+            # if not resuming training, exp_id must be unique
+            error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
 
         # Prepare devices.
         self.base_cuda()
@@ -237,12 +243,31 @@ class Runner(Base):
         pass
 
     def load_run(self):
-        all_results = self.dbinterface.load({'exp_id': self.exp_id})
-        # TODO: Raise exc if not found of exp_id collisions.
+
+        if 'exp_id' not in self.load_params['load_query'].keys():
+            error_msg = 'Cannot load an experiment without an exp_id'
+            log.critical(error_msg)
+            ExpIDError(error_msg)
+
+        if (not self.exp_id == self.load_params['load_query']['exp_id']) and len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
+            # if not resuming training, exp_id must be unique
+            error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+
+        load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        all_results = load_dbinterface.load(self.load_params['load_query'])
+
+        if len(all_results) == 0:
+            error_msg = 'No results in the database matched the load_query'
+            log.critical(error_msg)
+            raise LoadError(error_msg)
 
         if all_results:
             result = all_results[0]  # Load most recent run.
-            self = self.from_params(**result['params'])
+            result['params']['exp_id'] = self.exp_id
+            #change dataprovider too
+            self = self.from_params(**result['params']) 
             self.from_state(result['state'])
             log.info('Resuming {} training from step: {}'.format(self.exp_id, self.global_step))
 
