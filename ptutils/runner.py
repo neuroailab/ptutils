@@ -26,7 +26,7 @@ class Runner(Base):
     """
 
     def __init__(self,
-                 exp_id,
+                 exp_id=None,
                  model=None,
                  dbinterface=None,
                  dataprovider=None,
@@ -37,7 +37,7 @@ class Runner(Base):
         """Initialize the :class:`Runner` class.
 
         Args:
-            exp_id (str): Description.
+            exp_id (str, optional): Description.
             model (Model, optional): Description.
             dbinterface (DBInterface, optional): Description.
             dataprovider (DataProvider, optional): Description.
@@ -48,6 +48,8 @@ class Runner(Base):
 
         """
         super(Runner, self).__init__(**kwargs)
+        # Restore previous run.
+        # no loaded params -- load from user specified params
 
         # Core bases.
         self.model = model
@@ -62,6 +64,29 @@ class Runner(Base):
         self.exp_id = exp_id
         self.global_step = kwargs.get('global_step', 0)
 
+        if self.load_params['restore']:
+
+            loaded_run = self.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            # Temporarily set to False to stop infinite recursion
+            self.load_params['restore'] = False
+            if loaded_params:
+                # replace loaded params with user specified params
+                merged_params = self._replace_params(self.to_params(), loaded_params)
+                self = self.from_params(**merged_params)
+                self.from_state(loaded_state)
+            # Revert restore to true
+            self.load_params['restore'] = False
+
+        if self.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+
+        # Prepare devices.
+        self.base_cuda()
 # -- Runner Properties ---------------------------------------------------------
 
     @property
@@ -191,31 +216,20 @@ class Runner(Base):
             # in between steps.
 
             self.global_step += 1
+        record = {'exp_id': self.exp_id,
+                  'step': self.global_step,
+                  'state': self.to_state(),
+                  'params': self.to_params(),
+                  }
+        self.dbinterface.save(record)
 
-    def train_from_params(self):
+    def train_from_params(self, params):
         """Run the execution of an experiment.
-
         This is the primary entrance to the Runner class.
-
         """
-        if self.exp_id is None:
-            error_msg = 'Cannot run an experiment without an exp_id'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
-        
-        # Restore previous run.
-        if self.load_params['restore']:
-            self = self.load_run()
-        elif len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
-            # if not resuming training, exp_id must be unique
-            error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
-
-        # Prepare devices.
-        self.base_cuda()
 
         # Start the main training loop, if desired.
+
         if self.train_params['train']:
             self.train()
         else:
@@ -223,12 +237,17 @@ class Runner(Base):
 
         log.info('Training complete!')
 
-        record = {'exp_id': self.exp_id,
-                  'step': self.global_step,
-                  'state': self.to_state(),
-                  'params': self.to_params(),
-                  }
-        self.dbinterface.save(record)
+        
+
+    def _replace_params(self, replacement, to_replace):
+        for (key, value) in replacement.items():
+            if isinstance(value, dict) and (key in to_replace.keys()):
+                to_replace[key] = self._replace_params(value, to_replace[key])
+            else:
+                to_replace[key] = value
+        return to_replace
+
+
 
     def predict(self):
         # TODO
@@ -244,31 +263,26 @@ class Runner(Base):
 
     def load_run(self):
 
-        if 'exp_id' not in self.load_params['load_query'].keys():
-            error_msg = 'Cannot load an experiment without an exp_id'
-            log.critical(error_msg)
-            ExpIDError(error_msg)
+        # if ['exp_id',] not in self.load_params['load_query'].keys():
+        #     error_msg = 'Cannot load an experiment without an exp_id'
+        #     log.critical(error_msg)
+        #     ExpIDError(error_msg)
 
-        if (not self.exp_id == self.load_params['load_query']['exp_id']) and len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
-            # if not resuming training, exp_id must be unique
-            error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
+        # if (not self.exp_id == self.load_params['load_query']['exp_id']) and len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
+        #     # if not resuming training, exp_id must be unique
+        #     error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
+        #     log.critical(error_msg)
+        #     raise ExpIDError(error_msg)
 
         load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
         all_results = load_dbinterface.load(self.load_params['load_query'])
 
-        if len(all_results) == 0:
+        try:
+            # Load most recent run.
+            return all_results[0]
+        except IndexError:
             error_msg = 'No results in the database matched the load_query'
             log.critical(error_msg)
             raise LoadError(error_msg)
-
-        if all_results:
-            result = all_results[0]  # Load most recent run.
-            result['params']['exp_id'] = self.exp_id
-            #change dataprovider too
-            self = self.from_params(**result['params']) 
-            self.from_state(result['state'])
-            log.info('Resuming {} training from step: {}'.format(self.exp_id, self.global_step))
-
-        return self
+            
+        

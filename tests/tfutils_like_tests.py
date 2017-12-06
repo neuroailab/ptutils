@@ -168,17 +168,16 @@ def test_training():
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
     # actually run the training
     runner = ptutils.runner.Runner.from_params(**params)
-    runner.train_from_params()
+    runner.train()
 
     # test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps']/params['save_params']['metric_freq']) + 1
 
     # run another 50 steps of training on the same experiment id.
-    
-    runner = runner.from_params(**params)
-    runner.train_params['num_steps'] = 100
-    runner.load_params['restore'] = True 
-    runner.train_from_params()
+    params['train_params']['num_steps'] = 100
+    params['load_params']['restore'] = True 
+    runner = ptutils.runner.Runner.from_params(**params)
+    runner.train()
 
     # test if results are as expected -- should this be plus 1?
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps']//params['save_params']['metric_freq'])
