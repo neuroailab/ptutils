@@ -127,8 +127,9 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            # doc_copy = copy.deepcopy(doc)
-            doc_copy = copy.copy(doc)
+            doc = self._extract_data_from_variables(doc) 
+            doc_copy = copy.deepcopy(doc)
+            # doc_copy = copy.copy(doc)
 
             # Make a list of any existing referenced gridfs files.
             try:
@@ -281,6 +282,19 @@ class MongoInterface(DBInterface):
             else:
                 document[new_key] = document.pop(key)
         return document
+
+    def _extract_data_from_variables(self, document): 
+        for (key, value) in document.items():
+            if isinstance(value, dict):
+                document[key] = self._extract_data_from_variables(value)
+            elif isinstance(value, torch.autograd.Variable):
+                # get data from variable
+                try:
+                    # if variable is on GPU
+                    document[key] = value.data.cpu()
+                except:
+                    document[key] = value.data
+        return document     
 
     def _mongoify(self, document):
         """Modify the document so that it can be stored in MongoDB.
