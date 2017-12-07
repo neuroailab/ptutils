@@ -44,28 +44,12 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
         ptutils.base.Base.__init__(self, **kwargs)
 
 
-class Sequential(nn.Sequential, ptutils.base.Base):
-    pass
-
-
 # Experiment Params
 params = {
     'func': ptutils.runner.Runner,
     'name': 'MNISTRunner',
     'exp_id': "mnist_example_test",
     'description': 'The \'Hello, Wordl!\' of deep learning',
-    'Notes':
-        """
-        This is a simple experiment to demonstrate the most common
-        way in which a user will interact with ptutils. Typically,
-        a user will specify a single model, dbinterface and
-        dataprovider class to be run by the default runner class.
-
-        You can add arbitrary attributes to all instances of the
-        ptutils.base.Base class, such as these notes. Here would
-        be a good place to capture any thoughts or ideas about
-        the experiment that will be run.
-        """,
 
     # Define Model Params
     'model': {
@@ -116,7 +100,8 @@ params = {
         'metric_freq': 25},
 
     'load_params': {
-        'restore': True,
+        'exp_id': 'mnist_example_test',
+        'restore': False,
         'restore_params': None,
         'restore_mapping': None}}
 
@@ -124,7 +109,11 @@ params = {
 runner = ptutils.runner.Runner.from_params(**params)
 runner.train_from_params()
 
-runner = ptutils.runner.Runner.from_params(**params)
+runner.load_params['restore'] = True
 runner.train_params['num_steps'] = 100
+runner.train_from_params()
+
+runner.exp_id = 'new_exp_id'
+runner.train_params['num_steps'] = 200
 runner.train_from_params()
 runner.dbinterface.collection.drop()
