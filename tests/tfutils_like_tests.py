@@ -77,31 +77,12 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
         ptutils.base.Base.__init__(self, **kwargs)
 
 
-class Sequential(nn.Sequential, ptutils.base.Base):
-    pass
-
-
-def test_training():
-    """Illustrate training.
-
-    This test illustrates how basic training is performed using the
-    ptutils.runner.train_from_params function.  This is the first in a sequence of
-    interconnected tests. It creates a pretrained model that is used by
-    the next few tests (test_validation and test_feature_extraction).
-    As can be seen by looking at how the test checks for correctness, after the
-    training is run, results of training, including (intermittently) the full
-    variables needed to re-initialize the tensorflow model, are stored in a
-    MongoDB.
-
-    """
-    # set up the parameters
+def setup_params(exp_id=None):
     params = {
         'func': ptutils.runner.Runner,
         'name': 'MNISTRunner',
-        'exp_id': "mnist_example_test",
+        'exp_id': exp_id,
         'description': 'The \'Hello, World!\' of deep learning',
-        # 'use_cuda': True,
-        # 'devices': CUDA,
 
         # Define Model Params
         'model': {
@@ -160,43 +141,60 @@ def test_training():
                 'host': 'localhost',
                 'database_name': 'ptutils_test',
                 'collection_name': 'ptutils_test'},
-            'load_query': {'exp_id': "mnist_example_test"},
+            'exp_id': exp_id,
             'restore_params': None,
             'restore_mapping': None}}
+    return params
 
-    # clear database
-    conn = pm.MongoClient(host=params['dbinterface']['host'],
-                          port=params['dbinterface']['port'])
+def test_training():
+    """Illustrate training.
+
+    This test illustrates how basic training is performed using the
+    ptutils.runner.train_from_params function.  This is the first in a sequence of
+    interconnected tests. It creates a pretrained model that is used by
+    the next few tests (test_validation and test_feature_extraction).
+    As can be seen by looking at how the test checks for correctness, after the
+    training is run, results of training, including (intermittently) the full
+    variables needed to re-initialize the tensorflow model, are stored in a
+    MongoDB.
+
+    """
+    # Set up the parameters.
+    exp_id = 'mnist_training'
+    params = setup_params(exp_id)
+
+    # Clear database.
+    conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
-    # actually run the training
+
+    # Actually run the training.
     runner = ptutils.runner.Runner.from_params(**params)
     runner.train_from_params()
 
-    # test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save
+    # Test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save.
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq']) + 1
 
-    # run another 50 steps of training on the same experiment id.
+    # Run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
     params['load_params']['restore'] = True
+
     runner = ptutils.runner.Runner.from_params(**params)
     runner.train_from_params()
 
-    # test if results are as expected -- should this be plus 1?
+    # Test if results are as expected -- should this be plus 2?
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (runner.train_params['num_steps'] // params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
+    # Run 100 more steps but save to a new experiment id.
+    params['train_params']['num_steps'] = 200
+    params['exp_id'] = 'mnist_training1'
+    runner = ptutils.runner.Runner.from_params(**params)
 
-    # TODO: this won't work in our current setup. we need to figure out whether we want to
-    # replicate the tfutils loading structure, i.e. whether there should be a separate load exp_id
-    # run 500 more steps but save to a new experiment id.
-    # params['train_params']['num_steps'] = 1500
-    # params['load_params'] = {'exp_id': 'training0'}
-    # params['save_params']['exp_id'] = 'training1'
-
-    # base.train_from_params(**params)
+    runner.train_from_params()
+    assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
     # assert conn[testdbname][testcol + '.files'].find({'exp_id': 'training1',
     #                                                   'saved_filters': True}).distinct('step') == [1200, 1400]
 

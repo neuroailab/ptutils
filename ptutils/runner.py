@@ -179,14 +179,11 @@ class Runner(Base):
         save intermediate results.
 
         """
-
-
         if self.exp_id is None:
             error_msg = 'Cannot run an experiment without an exp_id'
             log.critical(error_msg)
             raise ExpIDError(error_msg)
 
-        self.base_cuda()
 
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
@@ -201,7 +198,7 @@ class Runner(Base):
                           'state': self.to_state(),
                           'params': self.to_params(),
                           }
-                print("SAVING step {}".format(self.global_step))
+                log.info("Saving step {}".format(self.global_step))
                 self.dbinterface.save(record)
 
             # if val_freq % 0:
@@ -210,13 +207,14 @@ class Runner(Base):
                 # val_model_output = self.validation_step(val_model_output)
             # You may want to do additional computation
             # in between steps.
-
             self.global_step += 1
+
         record = {'exp_id': self.exp_id,
                   'step': self.global_step,
                   'state': self.to_state(),
                   'params': self.to_params(),
                   }
+        log.info("Saving step {}".format(self.global_step))
         self.dbinterface.save(record)
 
     def train_from_params(self, **params):
@@ -224,8 +222,8 @@ class Runner(Base):
 
         This is the primary entrance to the Runner class.
         """
+        log.info('Beginning experiment: {}'.format(self.exp_id))
         if self.load_params['restore']:
-
             loaded_run = self.load_run()
             loaded_params = loaded_run['params']
             loaded_state = loaded_run['state']
@@ -235,8 +233,11 @@ class Runner(Base):
                 self = self.from_params(**loaded_params)
                 self.from_state(loaded_state)
 
-        # Start the main training loop, if desired.
+            log.info('Resuming training from step: {}'.format(self.global_step))
 
+        self.base_cuda()
+
+        # Start the main training loop, if desired.
         if self.train_params['train']:
             self.train()
         else:
@@ -244,13 +245,6 @@ class Runner(Base):
 
         log.info('Training complete!')
 
-    def _replace_params(self, replacement, to_replace):
-        for (key, value) in replacement.items():
-            if isinstance(value, dict) and (key in to_replace.keys()):
-                to_replace[key] = self._replace_params(value, to_replace[key])
-            else:
-                to_replace[key] = value
-        return to_replace
 
     def predict(self):
         # TODO
@@ -277,8 +271,8 @@ class Runner(Base):
         #     log.critical(error_msg)
         #     raise ExpIDError(error_msg)
 
-        load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
-        all_results = load_dbinterface.load(self.load_params['load_query'])
+        # load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
 
         try:
             # Load most recent run.
@@ -288,4 +282,10 @@ class Runner(Base):
             log.critical(error_msg)
             raise LoadError(error_msg)
 
-
+    def _replace_params(self, replacement, to_replace):
+        for (key, value) in replacement.items():
+            if isinstance(value, dict) and (key in to_replace.keys()):
+                to_replace[key] = self._replace_params(value, to_replace[key])
+            else:
+                to_replace[key] = value
+        return to_replace

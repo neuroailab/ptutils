@@ -208,6 +208,7 @@ class MongoInterface(DBInterface):
         """
         query = self._mongoify(query)
         results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
+        # results = self.collection.find(query, sort=[('insertion_date', -1)])
 
         if get_tensors:
             start = time.time()
