@@ -26,8 +26,9 @@ class Runner(Base):
     """
 
     def __init__(self,
-                 exp_id=None,
+                 exp_id,
                  model=None,
+                 global_step=None,
                  dbinterface=None,
                  dataprovider=None,
                  train_params=None,
@@ -62,31 +63,14 @@ class Runner(Base):
         self.train_params = train_params
 
         self.exp_id = exp_id
-        self.global_step = kwargs.get('global_step', 0)
+        self.global_step = global_step
+        # self.global_step = kwargs.get('global_step', 0)
 
-        if self.load_params['restore']:
 
-            loaded_run = self.load_run()
-            loaded_params = loaded_run['params']
-            loaded_state = loaded_run['state']
-
-            # Temporarily set to False to stop infinite recursion
-            self.load_params['restore'] = False
-            if loaded_params:
-                # replace loaded params with user specified params
-                merged_params = self._replace_params(self.to_params(), loaded_params)
-                self = self.from_params(**merged_params)
-                self.from_state(loaded_state)
-            # Revert restore to true
-            self.load_params['restore'] = False
-
-        if self.exp_id is None:
-            error_msg = 'Cannot run an experiment without an exp_id'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
 
         # Prepare devices.
-        self.base_cuda()
+        # self.base_cuda()
+
 # -- Runner Properties ---------------------------------------------------------
 
     @property
@@ -99,14 +83,17 @@ class Runner(Base):
 
     @property
     def global_step(self):
-        self._params['global_step']
+        if self._params['global_step'] is None:
+            self._params['global_step'] = 0
         return self._params['global_step']
 
     @global_step.setter
     def global_step(self, value):
         # if value <= self._params['global_step']:
             # raise StepError('The global step should have been incremented.')
-        if value > (self._params['global_step'] + 1):
+        if value is None:
+            self._params['global_step'] = value
+        elif value > (self._params['global_step'] + 1):
             raise StepError('The global step can only be incremented by one.')
         elif value < 0:
             raise StepError('The global step cannot be negative.')
@@ -192,6 +179,25 @@ class Runner(Base):
         save intermediate results.
 
         """
+        if self.load_params['restore']:
+
+            loaded_run = self.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            if loaded_params:
+                loaded_params.update(self.to_params())
+                print(loaded_params)
+                self = self.from_params(**loaded_params)
+                self.from_state(loaded_state)
+
+        if self.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+
+        self.base_cuda()
+
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
@@ -237,7 +243,7 @@ class Runner(Base):
 
         log.info('Training complete!')
 
-        
+
 
     def _replace_params(self, replacement, to_replace):
         for (key, value) in replacement.items():
@@ -284,5 +290,5 @@ class Runner(Base):
             error_msg = 'No results in the database matched the load_query'
             log.critical(error_msg)
             raise LoadError(error_msg)
-            
-        
+
+

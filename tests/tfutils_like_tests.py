@@ -100,12 +100,14 @@ def test_training():
         'name': 'MNISTRunner',
         'exp_id': "mnist_example_test",
         'description': 'The \'Hello, World!\' of deep learning',
+        'use_cuda': True,
+        'devices': CUDA,
         # Define Model Params
         'model': {
             'func': ptutils.model.Model,
             'name': 'MNIST',
-            'use_cuda': True,
-            'devices': CUDA,
+            # 'use_cuda': True,
+            # 'devices': CUDA,
 
             'net': {
                 'func': MNIST,
@@ -157,7 +159,7 @@ def test_training():
                 'host': 'localhost',
                 'database_name': 'ptutils_test',
                 'collection_name': 'ptutils_test'},
-            'load_query' : {'exp_id': "mnist_example_test"},
+            'load_query': {'exp_id': "mnist_example_test"},
             'restore_params': None,
             'restore_mapping': None}}
 
@@ -175,18 +177,18 @@ def test_training():
 
     # run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
-    params['load_params']['restore'] = True 
+    params['load_params']['restore'] = True
     runner = ptutils.runner.Runner.from_params(**params)
     runner.train()
 
     # test if results are as expected -- should this be plus 1?
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps']//params['save_params']['metric_freq'])
     print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == runner.train_params['num_steps']//params['save_params']['metric_freq']
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (runner.train_params['num_steps']//params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
 
-    # TODO: this won't work in our current setup. we need to figure out whether we want to 
+    # TODO: this won't work in our current setup. we need to figure out whether we want to
     # replicate the tfutils loading structure, i.e. whether there should be a separate load exp_id
     # run 500 more steps but save to a new experiment id.
     # params['train_params']['num_steps'] = 1500
