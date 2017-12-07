@@ -102,7 +102,6 @@ def test_training():
         'description': 'The \'Hello, World!\' of deep learning',
         # 'use_cuda': True,
         # 'devices': CUDA,
-
         # Define Model Params
         'model': {
             'func': ptutils.model.Model,
@@ -192,14 +191,65 @@ def test_training():
     # TODO: this won't work in our current setup. we need to figure out whether we want to
     # replicate the tfutils loading structure, i.e. whether there should be a separate load exp_id
     # run 500 more steps but save to a new experiment id.
-    # params['train_params']['num_steps'] = 1500
-    # params['load_params'] = {'exp_id': 'training0'}
-    # params['save_params']['exp_id'] = 'training1'
+    params['train_params']['num_steps'] = 1500
+    params['load_params'] = {'exp_id': 'training0'}
+    params['save_params']['exp_id'] = 'training1'
 
     # base.train_from_params(**params)
     # assert conn[testdbname][testcol + '.files'].find({'exp_id': 'training1',
     #                                                   'saved_filters': True}).distinct('step') == [1200, 1400]
 
+def test_validation():
+    """Illustrate validation.
+    This is a test illustrating how to compute performance on a trained model on a new dataset,
+    using the test_from_params function. This test assumes that test_training function
+    has run first (to provide a pre-trained model to validate).
+    After the test is run, results from the validation are stored in the MongoDB.
+    (The test shows how the record can be loaded for inspection.)
+    """
+    # specify the parameters for the validation
+    params = {}
+
+    params['model_params'] = {'func': model.mnist_tfutils}
+
+    params['load_params'] = {'host': testhost,
+                             'port': testport,
+                             'dbname': testdbname,
+                             'collname': testcol,
+                             'exp_id': 'training0'}
+
+    params['save_params'] = {'exp_id': 'validation0'}
+
+    params['validation_params'] = {'valid0': {'data_params': {'func': data.MNIST,
+                                                              'batch_size': 100,
+                                                              'group': 'test',
+                                                              'n_threads': 4},
+                                              'queue_params': {'queue_type': 'fifo',
+                                                               'batch_size': 100},
+                                              'num_steps': 10,
+                                              'agg_func': utils.mean_dict}}
+
+    # check that the results are correct
+    conn = pm.MongoClient(host=testhost,
+                          port=testport)
+
+    conn[testdbname][testcol + '.files'].delete_many({'exp_id': 'validation0'})
+
+    # actually run the model
+    base.test_from_params(**params)
+
+    # ... specifically, there is now a record containing the validation0 performance results
+    assert conn[testdbname][testcol + '.files'].find({'exp_id': 'validation0'}).count() == 1
+    # ... here's how to load the record:
+    r = conn[testdbname][testcol + '.files'].find({'exp_id': 'validation0'})[0]
+    asserts_for_record(r, params, train=False)
+
+    # ... check that the recorrectly ties to the id information for the
+    # pre-trained model it was supposed to validate
+    assert r['validates']
+    idval = conn[testdbname][testcol + '.files'].find({'exp_id': 'training0'})[50]['_id']
+    v = conn[testdbname][testcol + '.files'].find({'exp_id': 'validation0'})[0]['validates']
+    assert idval == v
 
 if __name__ == '__main__':
     test_training()
