@@ -100,14 +100,15 @@ def test_training():
         'name': 'MNISTRunner',
         'exp_id': "mnist_example_test",
         'description': 'The \'Hello, World!\' of deep learning',
-        'use_cuda': True,
-        'devices': CUDA,
+        # 'use_cuda': True,
+        # 'devices': CUDA,
+
         # Define Model Params
         'model': {
             'func': ptutils.model.Model,
             'name': 'MNIST',
-            # 'use_cuda': True,
-            # 'devices': CUDA,
+            'use_cuda': True,
+            'devices': CUDA,
 
             'net': {
                 'func': MNIST,
@@ -166,25 +167,25 @@ def test_training():
     # clear database
     conn = pm.MongoClient(host=params['dbinterface']['host'],
                           port=params['dbinterface']['port'])
-    result = conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
+    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
     # actually run the training
     runner = ptutils.runner.Runner.from_params(**params)
-    runner.train()
+    runner.train_from_params()
 
     # test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps']/params['save_params']['metric_freq']) + 1
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq']) + 1
 
     # run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
     params['load_params']['restore'] = True
     runner = ptutils.runner.Runner.from_params(**params)
-    runner.train()
+    runner.train_from_params()
 
     # test if results are as expected -- should this be plus 1?
-    print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps']//params['save_params']['metric_freq'])
+    print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (runner.train_params['num_steps']//params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (runner.train_params['num_steps'] // params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
 

@@ -1,12 +1,13 @@
 import bson
 import copy
+import time
 import gridfs
 import hashlib
 import datetime
 import numpy as np
 import pymongo as pm
 import pickle
-# import cPickle as pickle
+import cPickle as pickle
 from bson.binary import Binary
 from bson.objectid import ObjectId
 
@@ -127,7 +128,7 @@ class MongoInterface(DBInterface):
             # TODO: Only Variables created explicitly by the user (graph leaves)
             # support the deepcopy protocal at the moment... Thus, a RuntimeError
             # is raised when Variables not created by the users are saved.
-            doc = self._extract_data_from_variables(doc) 
+            doc = self._extract_data_from_variables(doc)
             doc_copy = copy.deepcopy(doc)
             # doc_copy = copy.copy(doc)
 
@@ -206,14 +207,15 @@ class MongoInterface(DBInterface):
 
         """
         query = self._mongoify(query)
-        results = self.collection.find(query, sort=[('insertion_date', -1)])
+        results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
 
         if get_tensors:
+            start = time.time()
             all_results = [self._de_mongoify(
                 self._load_tensor(doc)) for doc in results]
+            print('Time spend loading all results: {}'.format(time.time() - start))
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
-
         return all_results
         # if all_results:
         #     if len(all_results) > 1:
@@ -255,7 +257,9 @@ class MongoInterface(DBInterface):
         Returns:
             BSON Binary object a pickled tensor.
         """
-        return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
+        # return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
+        return Binary(jsonpickle.encode(tensor))
+        # return jsonpickle.encode(tensor)
 
     def _binary_to_tensor(self, binary):
         """Convert a pickled tensor string back into a tensor.
@@ -269,7 +273,8 @@ class MongoInterface(DBInterface):
             Tensor of arbitrary dimension.
 
         """
-        return pickle.loads(binary)
+        # return pickle.loads(binary)
+        return jsonpickle.decode(binary)
 
     def _replace(self, document, replace='.', replacement='__'):
         """Replace `replace` in dictionary keys with `replacement`."""
@@ -283,7 +288,7 @@ class MongoInterface(DBInterface):
                 document[new_key] = document.pop(key)
         return document
 
-    def _extract_data_from_variables(self, document): 
+    def _extract_data_from_variables(self, document):
         for (key, value) in document.items():
             if isinstance(value, dict):
                 document[key] = self._extract_data_from_variables(value)
@@ -294,7 +299,7 @@ class MongoInterface(DBInterface):
                     document[key] = value.data.cpu()
                 except:
                     document[key] = value.data
-        return document     
+        return document
 
     def _mongoify(self, document):
         """Modify the document so that it can be stored in MongoDB.
@@ -354,12 +359,12 @@ class MongoInterface(DBInterface):
         """
         for (key, value) in document.items():
             if isinstance(value, ObjectId) and key != '_id':
-                if key == '_Variable_data':
-                    document = torch.autograd.Variable(
-                        self._binary_to_tensor(self.filesystem.get(value).read()))
-                else:
-                    document[key] = self._binary_to_tensor(
-                        self.filesystem.get(value).read())
+                # if key == '_Variable_data':
+                    # document = torch.autograd.Variable(
+                        # self._binary_to_tensor(self.filesystem.get(value).read()))
+                # else:
+                document[key] = self._binary_to_tensor(self.filesystem.get(value).read())
+
             elif isinstance(value, dict):
                 document[key] = self._load_tensor(value)
         return document

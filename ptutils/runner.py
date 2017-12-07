@@ -179,17 +179,7 @@ class Runner(Base):
         save intermediate results.
 
         """
-        if self.load_params['restore']:
 
-            loaded_run = self.load_run()
-            loaded_params = loaded_run['params']
-            loaded_state = loaded_run['state']
-
-            if loaded_params:
-                loaded_params.update(self.to_params())
-                print(loaded_params)
-                self = self.from_params(**loaded_params)
-                self.from_state(loaded_state)
 
         if self.exp_id is None:
             error_msg = 'Cannot run an experiment without an exp_id'
@@ -231,8 +221,19 @@ class Runner(Base):
 
     def train_from_params(self, **params):
         """Run the execution of an experiment.
+
         This is the primary entrance to the Runner class.
         """
+        if self.load_params['restore']:
+
+            loaded_run = self.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            if loaded_params:
+                loaded_params.update(self.to_params())
+                self = self.from_params(**loaded_params)
+                self.from_state(loaded_state)
 
         # Start the main training loop, if desired.
 
@@ -243,8 +244,6 @@ class Runner(Base):
 
         log.info('Training complete!')
 
-
-
     def _replace_params(self, replacement, to_replace):
         for (key, value) in replacement.items():
             if isinstance(value, dict) and (key in to_replace.keys()):
@@ -252,8 +251,6 @@ class Runner(Base):
             else:
                 to_replace[key] = value
         return to_replace
-
-
 
     def predict(self):
         # TODO
