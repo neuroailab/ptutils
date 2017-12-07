@@ -229,7 +229,7 @@ class Runner(Base):
                   }
         self.dbinterface.save(record)
 
-    def train_from_params(self, params):
+    def train_from_params(self, **params):
         """Run the execution of an experiment.
         This is the primary entrance to the Runner class.
         """
