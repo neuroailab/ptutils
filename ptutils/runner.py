@@ -67,10 +67,6 @@ class Runner(Base):
         # self.global_step = kwargs.get('global_step', 0)
 
 
-
-        # Prepare devices.
-        # self.base_cuda()
-
 # -- Runner Properties ---------------------------------------------------------
 
     @property
@@ -221,6 +217,7 @@ class Runner(Base):
         """Run the execution of an experiment.
 
         This is the primary entrance to the Runner class.
+
         """
         log.info('Beginning experiment: {}'.format(self.exp_id))
         if self.load_params['restore']:

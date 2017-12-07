@@ -161,11 +161,14 @@ def test_training():
     """
     # Set up the parameters.
     exp_id = 'mnist_training'
+    new_exp_id = 'mnist_training1'
     params = setup_params(exp_id)
 
     # Clear database.
     conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
+    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': new_exp_id})
+    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].drop()
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
 
     # Actually run the training.
@@ -189,15 +192,12 @@ def test_training():
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
     # Run 100 more steps but save to a new experiment id.
+    params['exp_id'] = new_exp_id
     params['train_params']['num_steps'] = 200
-    params['exp_id'] = 'mnist_training1'
+
     runner = ptutils.runner.Runner.from_params(**params)
-
     runner.train_from_params()
-    assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
-    # assert conn[testdbname][testcol + '.files'].find({'exp_id': 'training1',
-    #                                                   'saved_filters': True}).distinct('step') == [1200, 1400]
-
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == 5
 
 if __name__ == '__main__':
     test_training()
