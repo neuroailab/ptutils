@@ -215,7 +215,7 @@ def test_validation():
 
     exp_id = 'mnist_validation'
     params = setup_params(exp_id)
-    params['load_params']['restore'] = False
+    params['load_params']['restore'] = True
     params['load_params']['exp_id'] = 'mnist_training'
     params['validation_params'] = {'num_steps': 100}
 
