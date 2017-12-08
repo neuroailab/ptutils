@@ -42,7 +42,7 @@ import ptutils
 
 LOG_LEVEL = 'WARNING'
 MONGO_PORT = 27017
-CUDA = 0
+CUDA = 3
 
 
 class MNIST(torch.nn.Module, ptutils.base.Base):
@@ -178,8 +178,8 @@ def test_training():
     print(runner)
     runner.train_from_params()
 
-    # Test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save.
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq']) + 1
+    # Test if the number of saved documents is correct: (num_steps / metric_freq).
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq'])
 
     # Run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
@@ -191,24 +191,25 @@ def test_training():
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train_from_params()
 
-    # Test if results are as expected -- should this be plus 2?
+    # Test if the number of saved documents is correct: (num_steps / metric_freq).
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (
-        runner.train_params['num_steps'] // params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
+        runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
     # Run 100 more steps but save to a new experiment id.
     params['exp_id'] = new_exp_id
+    previous_num_steps = params['train_params']['num_steps']
     params['train_params']['num_steps'] = 200
+    expected_num_records = (params['train_params']['num_steps'] - previous_num_steps) // params['save_params']['metric_freq']
 
     runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
-    assert runner.dbinterface.collection.find(
-        {'exp_id': params['exp_id']}).count() == 5
-
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
 
 def test_validation():
+
     """Illustrate validation.
 
     This is a test illustrating how to compute performance on a trained model on a new dataset,
@@ -218,8 +219,8 @@ def test_validation():
     (The test shows how the record can be loaded for inspection.)
 
     """
-    # specify the parameters for the validation
 
+    # specify the parameters for the validation
     exp_id = 'mnist_validation'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
@@ -241,15 +242,6 @@ def test_validation():
     assert conn[params['dbinterface']['database_name']][params['dbinterface']
         ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
     r = runner.dbinterface.load({'exp_id': runner.exp_id})
-    # print(r[0])
-
-    # ... check that the recorrectly ties to the id information for the
-    # pre-trained model it was supposed to validate
-    # assert r['validates']
-    # idval = conn[testdbname][testcol + '.files'].find({'exp_id': 'training0'})[50]['_id']
-    # v = conn[testdbname][testcol + '.files'].find({'exp_id': 'validation0'})[0]['validates']
-    # assert idval == v
-
 
 if __name__ == '__main__':
     test_training()

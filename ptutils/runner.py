@@ -186,21 +186,7 @@ class Runner(Base):
 
         log.info('step: {}; loss: {}'.format(self.global_step,
                                              output['loss'].data[0]))
-        return output
-
-    def inference(self, prev_output):
-        """Define a single step of an experiment.
-
-        This must increment the global step. A common use case
-        will be to simply make a forward pass update the model.
-
-        Formally, this will call model.forward(), whose output should
-        be used by the dataprovider to provide the next batch of data.
-
-        """
-        data = self.dataprovider.provide(prev_output, mode='test')[0]
-        output = self.model.inference(data)
-        return output
+        return output        
 
     def train(self):
         """Define the primary training loop.
@@ -212,6 +198,8 @@ class Runner(Base):
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
+
+            self.global_step += 1
 
             if self.global_step % self.save_params['metric_freq'] == 0:
 
@@ -231,15 +219,7 @@ class Runner(Base):
                 # val_model_output = self.validation_step(val_model_output)
             # You may want to do additional computation
             # in between steps.
-            self.global_step += 1
-
-        record = {'exp_id': self.exp_id,
-                  'step': self.global_step,
-                  'state': self.to_state(),
-                  'params': self.to_params(),
-                  }
-        log.info("Saving step {}".format(self.global_step))
-        self.dbinterface.save(record)
+            
 
     def train_from_params(self, **params):
         """Run the execution of an experiment.
@@ -261,12 +241,18 @@ class Runner(Base):
             self.train()
         else:
             log.info('Skipping training.')
-
         log.info('Training complete!')
 
-    def predict(self):
-        # TODO
-        raise NotImplementedError
+    def predict(self, prev_output):
+        """Define a single step of an experiment.
+        Formally, this will call model.forward(), whose output should
+        be used by the dataprovider to provide the next batch of data.
+
+        """
+        data = self.dataprovider.provide(prev_output, mode='test')[0]
+        output = self.model.inference(data)
+        return output
+        
 
     def test(self):
         """Perform inference.
@@ -275,7 +261,7 @@ class Runner(Base):
         model_output = None
         all_model_outputs = []
         for step in range(self.validation_params['num_steps']):
-            model_output = self.inference(model_output)
+            model_output = self.predict(model_output)
             all_model_outputs.append(model_output)
 
         # Save desired results.
