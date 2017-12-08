@@ -122,21 +122,23 @@ class MNISTProvider(DataProvider):
                                transform=transforms.ToTensor(),
                                download=True)
 
-        self.dataloader = iter(DataLoader(dataset=self.train,
+        self.train_dataloader = iter(DataLoader(dataset=self.train,
                                           batch_size=batch_size,
-                                          shuffle=(mode == 'train')))
+                                          shuffle=True))
+
+        self.test_dataloader = iter(DataLoader(dataset=self.test,
+                                          batch_size=batch_size,
+                                          shuffle=False))
 
     def to_params(self):
         return {name: param for name, param in self._params.items()
                 if name not in ['dataloader']}
 
-    def provide(self, model_output):
-        return next(self.dataloader)
-
-    def provide_(self, mode='train', batch_size=100):
-        return DataLoader(dataset=self[mode],
-                          batch_size=batch_size,
-                          shuffle=(mode == 'train'))
+    def provide(self, model_output, mode='train'):
+        if mode == 'train':
+            return next(self.dataloader)
+        elif mode == 'test':
+            return next(self.dataloader)
 
 
 class MNIST(dsets.MNIST, Dataset):

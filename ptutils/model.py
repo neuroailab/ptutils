@@ -98,6 +98,10 @@ class Model(Base):
     def apply_gradients(self):
         self.optimizer.step()
 
+    def eval(self):
+        '''Setup model for evaluation'''
+        self.net.eval()
+
     def optimize(self, loss=None):
         self.compute_gradients(loss=loss)
         self.apply_gradients()

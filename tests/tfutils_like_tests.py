@@ -162,15 +162,15 @@ def test_training():
     """
     # Set up the parameters.
     exp_id = 'mnist_training'
-    new_exp_id = 'mnist_training1'
+    new_exp_id = 'new_mnist_training'
     params = setup_params(exp_id)
 
     # Clear database.
     conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': new_exp_id})
-    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].drop()
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
+    assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': new_exp_id}).count() == 0
 
     # Actually run the training.
     runner = ptutils.runner.Runner.init(**params)
@@ -198,9 +198,46 @@ def test_training():
 
     runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
-
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == 5
 
 
+def test_validation():
+    """Illustrate validation.
+
+    This is a test illustrating how to compute performance on a trained model on a new dataset,
+    using the runner.test_from_params function.  This test assumes that test_training function
+    has run first (to provide a pre-trained model to validate).
+    After the test is run, results from the validation are stored in the MongoDB.
+    (The test shows how the record can be loaded for inspection.)
+
+    """
+    # specify the parameters for the validation
+
+    exp_id = 'mnist_validation'
+    params = setup_params(exp_id)
+    params['load_params']['restore'] = True
+    params['load_params']['exp_id'] = 'mnist_training'
+    params['validation_params'] = {'num_steps': 100}
+
+    # Clear database.
+    conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
+    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
+    assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
+
+    # actually run the model
+    runner = ptutils.runner.Runner.from_params(**params)
+    runner.test_from_params()
+
+    assert conn[testdbname][testcol + '.files'].find({'exp_id': params['exp_id']}).count() == 1
+
+    # ... check that the recorrectly ties to the id information for the
+    # pre-trained model it was supposed to validate
+    assert r['validates']
+    idval = conn[testdbname][testcol + '.files'].find({'exp_id': 'training0'})[50]['_id']
+    v = conn[testdbname][testcol + '.files'].find({'exp_id': 'validation0'})[0]['validates']
+    assert idval == v
+
+
 if __name__ == '__main__':
-    runner = test_training()
+    test_training()
+    test_validation()
