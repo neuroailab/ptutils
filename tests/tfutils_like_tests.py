@@ -169,6 +169,7 @@ def test_training():
     conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
     conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': new_exp_id})
+    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].drop()
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': new_exp_id}).count() == 0
 
@@ -229,6 +230,8 @@ def test_validation():
     runner.test_from_params()
 
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
+    r = runner.dbinterface.load({'exp_id': runner.exp_id})
+    # print(r[0])
 
     # ... check that the recorrectly ties to the id information for the
     # pre-trained model it was supposed to validate
@@ -239,5 +242,5 @@ def test_validation():
 
 
 if __name__ == '__main__':
-    test_training()
+    # test_training()
     test_validation()

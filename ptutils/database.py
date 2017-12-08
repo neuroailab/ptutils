@@ -359,7 +359,7 @@ class MongoInterface(DBInterface):
                     document[new_key] = popped_value
         return document
 
-    def _load_tensor(self, document):
+    def __load_tensor(self, document):
         """Replace ObjectIds with their corresponding gridFS data.
 
         Utility method to recurse through a document and gather all ObjectIds and
@@ -440,33 +440,34 @@ class MongoInterface(DBInterface):
 
         return value
 
-    # def __load_tensor(self, value):
-    #     """Replace ObjectIds with their corresponding gridFS data.
+    def _load_tensor(self, value):
+        """Replace ObjectIds with their corresponding gridFS data.
 
-    #     Utility method to recurse through a document and gather all ObjectIds and
-    #     replace them one by one with their corresponding data from the gridFS collection.
+        Utility method to recurse through a document and gather all ObjectIds and
+        replace them one by one with their corresponding data from the gridFS collection.
 
-    #     Skips any entries with a key of '_id'.
+        Skips any entries with a key of '_id'.
 
-    #     Note that it modifies the document in place.
+        Note that it modifies the document in place.
 
-    #     Args:
-    #         document: dictionary-like document, storable in mongodb.
+        Args:
+            document: dictionary-like document, storable in mongodb.
 
-    #     Returns:
-    #         document: dictionary-like document, storable in mongodb.
+        Returns:
+            document: dictionary-like document, storable in mongodb.
 
-    #     """
-    #     if isinstance(value, dict):
-    #         return {k: self._binary_to_tensor(self.filesystem.get(v).read())
-    #                 if k != '_id' else self._load_tensor(v) for k, v in value.items()}
-    #                 # if k != '_id' else v for k, v in value.items()}
-    #     elif isinstance(value, list):
-    #         return [self._binary_to_tensor(self.filesystem.get(v).read())
-    #                 for v in value]
-    #     elif isinstance(value, ObjectId):
-    #         return self._binary_to_tensor(self.filesystem.get(value).read())
-    #     return value
+        """
+        if isinstance(value, ObjectId):
+            try:
+                return self._binary_to_tensor(self.filesystem.get(value).read())
+            except Exception as e:
+                print(e)
+        if isinstance(value, dict):
+            return {k: self._load_tensor(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [self._load_tensor(v) for v in value]
+
+        return value
 
     # def __save_tensors(self, document):
     #     """Replace tensors with a reference to their location in gridFS.
