@@ -122,21 +122,23 @@ class MNISTProvider(DataProvider):
                                transform=transforms.ToTensor(),
                                download=True)
 
-        self.dataloader = iter(DataLoader(dataset=self.train,
-                                          batch_size=batch_size,
-                                          shuffle=(mode == 'train')))
+        self.train_dataloader = iter(DataLoader(dataset=self.train,
+                                                batch_size=batch_size,
+                                                shuffle=True))
+
+        self.test_dataloader = iter(DataLoader(dataset=self.test,
+                                               batch_size=batch_size,
+                                               shuffle=False))
 
     def to_params(self):
         return {name: param for name, param in self._params.items()
-                if name not in ['dataloader']}
+                if name not in ['train_dataloader', 'test_dataloader']}
 
-    def provide(self, model_output):
-        return next(self.dataloader)
-
-    def provide_(self, mode='train', batch_size=100):
-        return DataLoader(dataset=self[mode],
-                          batch_size=batch_size,
-                          shuffle=(mode == 'train'))
+    def provide(self, model_output, mode='train'):
+        if mode == 'train':
+            return next(self.train_dataloader)
+        elif mode == 'test':
+            return next(self.test_dataloader)
 
 
 class MNIST(dsets.MNIST, Dataset):
@@ -159,13 +161,11 @@ class CIFARProvider(DataProvider):
         self.datasets = {'CIFAR10': {}, 'CIFAR100': {}}
         for mode in self.modes:
             self.datasets['CIFAR10'][mode] = dsets.CIFAR10(root='../tests/resources/data/',
-                                                           train=(
-                                                               mode == 'train'),
+                                                           train=(mode == 'train'),
                                                            transform=transforms.ToTensor(),
                                                            download=True)
             self.datasets['CIFAR100'][mode] = dsets.CIFAR100(root='../tests/resources/data/',
-                                                             train=(
-                                                                 mode == 'train'),
+                                                             train=(mode == 'train'),
                                                              transform=transforms.ToTensor(),
                                                              download=True)
 

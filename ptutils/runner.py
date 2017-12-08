@@ -53,6 +53,7 @@ class Runner(Base):
         # no loaded params -- load from user specified params
 
         # Core bases.
+
         self.model = model
         self.dbinterface = dbinterface
         self.dataprovider = dataprovider
@@ -64,14 +65,27 @@ class Runner(Base):
 
         self.exp_id = exp_id
         self.global_step = global_step
-        # self.global_step = kwargs.get('global_step', 0)
-
-
-
-        # Prepare devices.
-        # self.base_cuda()
 
 # -- Runner Properties ---------------------------------------------------------
+
+    @classmethod
+    def init(cls, **params):
+        runner = Base.from_params(**params)
+        if runner.load_params['restore']:
+            loaded_run = runner.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            if loaded_params:
+                loaded_params.update(runner.to_params())
+                runner = Runner.from_params(**loaded_params)
+                runner.from_state(loaded_state)
+
+        if runner.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+        return runner
 
     @property
     def exp_id(self):
@@ -154,6 +168,11 @@ class Runner(Base):
 
 # -- Runner Methods ------------------------------------------------------------
 
+    def setup_eval(self, prev_output):
+        """Set up the model for evaluation."""
+        self.model.eval()
+        return prev_output
+
     def step(self, prev_output):
         """Define a single step of an experiment.
 
@@ -164,12 +183,25 @@ class Runner(Base):
         be used by the dataprovider to provide the next batch of data.
 
         """
-        prev_output = None
-        data = self.dataprovider.provide(prev_output)
+        data = self.dataprovider.provide(prev_output, mode='train')
         output = self.model.step(data)
 
         log.info('step: {}; loss: {}'.format(self.global_step,
                                              output['loss'].data[0]))
+        return output
+
+    def inference(self, prev_output):
+        """Define a single step of an experiment.
+
+        This must increment the global step. A common use case
+        will be to simply make a forward pass update the model.
+
+        Formally, this will call model.forward(), whose output should
+        be used by the dataprovider to provide the next batch of data.
+
+        """
+        data = self.dataprovider.provide(prev_output, mode='test')[0]
+        output = self.model.inference(data)
         return output
 
     def train(self):
@@ -179,15 +211,6 @@ class Runner(Base):
         save intermediate results.
 
         """
-
-
-        if self.exp_id is None:
-            error_msg = 'Cannot run an experiment without an exp_id'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
-
-        self.base_cuda()
-
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
@@ -201,7 +224,7 @@ class Runner(Base):
                           'state': self.to_state(),
                           'params': self.to_params(),
                           }
-                print("SAVING step {}".format(self.global_step))
+                log.info("Saving step {}".format(self.global_step))
                 self.dbinterface.save(record)
 
             # if val_freq % 0:
@@ -210,33 +233,32 @@ class Runner(Base):
                 # val_model_output = self.validation_step(val_model_output)
             # You may want to do additional computation
             # in between steps.
-
             self.global_step += 1
+
         record = {'exp_id': self.exp_id,
                   'step': self.global_step,
                   'state': self.to_state(),
                   'params': self.to_params(),
                   }
+        log.info("Saving step {}".format(self.global_step))
         self.dbinterface.save(record)
 
     def train_from_params(self, **params):
         """Run the execution of an experiment.
 
         This is the primary entrance to the Runner class.
+
         """
-        if self.load_params['restore']:
+        log.info('Beginning experiment: {}'.format(self.exp_id))
 
-            loaded_run = self.load_run()
-            loaded_params = loaded_run['params']
-            loaded_state = loaded_run['state']
+        if self.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
 
-            if loaded_params:
-                loaded_params.update(self.to_params())
-                self = self.from_params(**loaded_params)
-                self.from_state(loaded_state)
+        self.base_cuda()
 
         # Start the main training loop, if desired.
-
         if self.train_params['train']:
             self.train()
         else:
@@ -244,25 +266,53 @@ class Runner(Base):
 
         log.info('Training complete!')
 
-    def _replace_params(self, replacement, to_replace):
-        for (key, value) in replacement.items():
-            if isinstance(value, dict) and (key in to_replace.keys()):
-                to_replace[key] = self._replace_params(value, to_replace[key])
-            else:
-                to_replace[key] = value
-        return to_replace
-
     def predict(self):
         # TODO
         raise NotImplementedError
 
     def test(self):
-        # TODO
-        raise NotImplementedError
+        """Perform inference.
+
+        """
+        model_output = None
+        all_model_outputs = []
+        for step in range(self.validation_params['num_steps']):
+            model_output = self.inference(model_output)
+            print(type(model_output))
+            all_model_outputs.append(model_output)
+
+        # Save desired results.
+        record = {'exp_id': self.exp_id,
+                  'output': all_model_outputs,
+                  'params': self.to_params(),
+                  }
+        self.dbinterface.save(record)
 
     def test_from_params(self):
-        # TODO
-        pass
+
+        log.info('Beginning experiment: {}'.format(self.exp_id))
+        # if self.load_params['restore']:
+        #     loaded_run = self.load_run()
+        #     loaded_params = loaded_run['params']
+        #     loaded_state = loaded_run['state']
+
+        #     if loaded_params:
+        #         loaded_params.update(self.to_params())
+        #         self = self.from_params(**loaded_params)
+        #         self.from_state(loaded_state)
+
+        # if self.exp_id is None:
+        #     error_msg = 'Cannot run an experiment without an exp_id'
+        #     log.critical(error_msg)
+        #     raise ExpIDError(error_msg)
+
+        self.base_cuda()
+
+        # Start the main training loop, if desired.
+
+        self.test()
+
+        log.info('Validation complete!')
 
     def load_run(self):
 
@@ -277,8 +327,9 @@ class Runner(Base):
         #     log.critical(error_msg)
         #     raise ExpIDError(error_msg)
 
-        load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
-        all_results = load_dbinterface.load(self.load_params['load_query'])
+        # load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        # all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
+        all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
 
         try:
             # Load most recent run.
@@ -288,4 +339,10 @@ class Runner(Base):
             log.critical(error_msg)
             raise LoadError(error_msg)
 
-
+    def _replace_params(self, replacement, to_replace):
+        for (key, value) in replacement.items():
+            if isinstance(value, dict) and (key in to_replace.keys()):
+                to_replace[key] = self._replace_params(value, to_replace[key])
+            else:
+                to_replace[key] = value
+        return to_replace
