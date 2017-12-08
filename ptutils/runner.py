@@ -77,7 +77,8 @@ class Runner(Base):
             loaded_state = loaded_run['state']
 
             if loaded_params:
-                loaded_params.update(runner.to_params())
+                # loaded_params.update(runner.to_params())
+                loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
                 runner = Runner.from_params(**loaded_params)
                 runner.from_state(loaded_state)
 
@@ -278,7 +279,6 @@ class Runner(Base):
         all_model_outputs = []
         for step in range(self.validation_params['num_steps']):
             model_output = self.inference(model_output)
-            print(type(model_output))
             all_model_outputs.append(model_output)
 
         # Save desired results.
@@ -327,9 +327,9 @@ class Runner(Base):
         #     log.critical(error_msg)
         #     raise ExpIDError(error_msg)
 
-        # load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
-        # all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
-        all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
+        load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
+        # all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
 
         try:
             # Load most recent run.
@@ -339,10 +339,13 @@ class Runner(Base):
             log.critical(error_msg)
             raise LoadError(error_msg)
 
-    def _replace_params(self, replacement, to_replace):
+    @staticmethod
+    def _replace_params(replacement, to_replace):
         for (key, value) in replacement.items():
             if isinstance(value, dict) and (key in to_replace.keys()):
-                to_replace[key] = self._replace_params(value, to_replace[key])
+                to_replace[key] = Runner._replace_params(value, to_replace[key])
             else:
-                to_replace[key] = value
+                # if value is not None and not isinstance(value, type(None)):
+                if value is not type(None):
+                    to_replace[key] = value
         return to_replace

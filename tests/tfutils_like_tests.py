@@ -111,7 +111,7 @@ def setup_params(exp_id=None):
             'func': ptutils.data.MNISTProvider,
             'name': 'MNISTProvider',
             'n_threads': 4,
-            'batch_size': 4,
+            'batch_size': 64,
             'modes': ('train', 'test')},
 
         # Define DBInterface Params
@@ -184,13 +184,17 @@ def test_training():
     params['train_params']['num_steps'] = 100
     params['load_params']['restore'] = True
 
-    runner = ptutils.runner.Runner.init(**params)
+    # Revive the experiment using little more than load_params.
+    revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
+
+    runner = ptutils.runner.Runner.init(**revive_params)
     runner.train_from_params()
 
     # Test if results are as expected -- should this be plus 2?
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (runner.train_params['num_steps'] // params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (
+        runner.train_params['num_steps'] // params['save_params']['metric_freq']) + 2  # there have been two initial saves now.
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
     # Run 100 more steps but save to a new experiment id.
@@ -199,7 +203,8 @@ def test_training():
 
     runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == 5
+    assert runner.dbinterface.collection.find(
+        {'exp_id': params['exp_id']}).count() == 5
 
 
 def test_validation():
@@ -221,15 +226,19 @@ def test_validation():
     params['validation_params'] = {'num_steps': 100}
 
     # Clear database.
-    conn = pm.MongoClient(host=params['dbinterface']['host'], port=params['dbinterface']['port'])
-    conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].delete_many({'exp_id': params['exp_id']})
-    assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
+    conn = pm.MongoClient(
+        host=params['dbinterface']['host'], port=params['dbinterface']['port'])
+    conn[params['dbinterface']['database_name']][params['dbinterface']
+        ['collection_name']].delete_many({'exp_id': params['exp_id']})
+    assert conn[params['dbinterface']['database_name']][params['dbinterface']
+        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
 
     # actually run the model
     runner = ptutils.runner.Runner.init(**params)
     runner.test_from_params()
 
-    assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
+    assert conn[params['dbinterface']['database_name']][params['dbinterface']
+        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
     r = runner.dbinterface.load({'exp_id': runner.exp_id})
     # print(r[0])
 
@@ -242,5 +251,5 @@ def test_validation():
 
 
 if __name__ == '__main__':
-    # test_training()
+    test_training()
     test_validation()

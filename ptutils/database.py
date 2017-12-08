@@ -460,8 +460,8 @@ class MongoInterface(DBInterface):
         if isinstance(value, ObjectId):
             try:
                 return self._binary_to_tensor(self.filesystem.get(value).read())
-            except Exception as e:
-                print(e)
+            except Exception:
+                pass
         if isinstance(value, dict):
             return {k: self._load_tensor(v) for k, v in value.items()}
         elif isinstance(value, list):
