@@ -146,6 +146,7 @@ def setup_params(exp_id=None):
             'restore_mapping': None}}
     return params
 
+
 def test_training():
     """Illustrate training.
 
@@ -172,7 +173,7 @@ def test_training():
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
 
     # Actually run the training.
-    runner = ptutils.runner.Runner.from_params(**params)
+    runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save.
@@ -182,7 +183,7 @@ def test_training():
     params['train_params']['num_steps'] = 100
     params['load_params']['restore'] = True
 
-    runner = ptutils.runner.Runner.from_params(**params)
+    runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
 
     # Test if results are as expected -- should this be plus 2?
@@ -195,9 +196,11 @@ def test_training():
     params['exp_id'] = new_exp_id
     params['train_params']['num_steps'] = 200
 
-    runner = ptutils.runner.Runner.from_params(**params)
+    runner = ptutils.runner.Runner.init(**params)
     runner.train_from_params()
+
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == 5
 
+
 if __name__ == '__main__':
-    test_training()
+    runner = test_training()

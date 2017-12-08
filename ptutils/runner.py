@@ -53,6 +53,7 @@ class Runner(Base):
         # no loaded params -- load from user specified params
 
         # Core bases.
+
         self.model = model
         self.dbinterface = dbinterface
         self.dataprovider = dataprovider
@@ -64,10 +65,22 @@ class Runner(Base):
 
         self.exp_id = exp_id
         self.global_step = global_step
-        # self.global_step = kwargs.get('global_step', 0)
-
 
 # -- Runner Properties ---------------------------------------------------------
+
+    @classmethod
+    def init(cls, **params):
+        runner = Base.from_params(**params)
+        if runner.load_params['restore']:
+            loaded_run = runner.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            if loaded_params:
+                loaded_params.update(runner.to_params())
+                runner = Runner.from_params(**loaded_params)
+                runner.from_state(loaded_state)
+        return runner
 
     @property
     def exp_id(self):
@@ -180,7 +193,6 @@ class Runner(Base):
             log.critical(error_msg)
             raise ExpIDError(error_msg)
 
-
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
@@ -220,17 +232,6 @@ class Runner(Base):
 
         """
         log.info('Beginning experiment: {}'.format(self.exp_id))
-        if self.load_params['restore']:
-            loaded_run = self.load_run()
-            loaded_params = loaded_run['params']
-            loaded_state = loaded_run['state']
-
-            if loaded_params:
-                loaded_params.update(self.to_params())
-                self = self.from_params(**loaded_params)
-                self.from_state(loaded_state)
-
-            log.info('Resuming training from step: {}'.format(self.global_step))
 
         self.base_cuda()
 
@@ -241,7 +242,6 @@ class Runner(Base):
             log.info('Skipping training.')
 
         log.info('Training complete!')
-
 
     def predict(self):
         # TODO
@@ -269,6 +269,7 @@ class Runner(Base):
         #     raise ExpIDError(error_msg)
 
         # load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        # all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
         all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
 
         try:
