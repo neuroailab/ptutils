@@ -150,6 +150,12 @@ class Runner(Base):
 
 # -- Runner Methods ------------------------------------------------------------
 
+    def setup_eval(self, prev_output):
+        """Setup the model for evaluation.
+        """
+        self.model.eval()
+        return output
+    
     def step(self, prev_output):
         """Define a single step of an experiment.
 
@@ -168,6 +174,21 @@ class Runner(Base):
                                              output['loss'].data[0]))
         return output
 
+    def inference(self, prev_output):
+        """Define a single step of an experiment.
+
+        This must increment the global step. A common use case
+        will be to simply make a forward pass update the model.
+
+        Formally, this will call model.forward(), whose output should
+        be used by the dataprovider to provide the next batch of data.
+
+        """
+        prev_output = None
+        data = self.dataprovider.provide(prev_output, mode = 'test')
+        output = self.model.inference(data)
+        return output
+
     def train(self):
         """Define the primary training loop.
 
@@ -175,12 +196,6 @@ class Runner(Base):
         save intermediate results.
 
         """
-        if self.exp_id is None:
-            error_msg = 'Cannot run an experiment without an exp_id'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
-
-
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
@@ -232,6 +247,11 @@ class Runner(Base):
 
             log.info('Resuming training from step: {}'.format(self.global_step))
 
+        if self.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+
         self.base_cuda()
 
         # Start the main training loop, if desired.
@@ -248,12 +268,47 @@ class Runner(Base):
         raise NotImplementedError
 
     def test(self):
-        # TODO
-        raise NotImplementedError
+        """Perform inference.
+
+        """
+        model_output = None
+        all_model_outputs = [ ] 
+        for step in range(self.validation_params['num_steps']):
+            model_output = self.inference(model_output)
+            all_model_outputs.append(model_output)
+
+        # Save desired results.
+        record = {'exp_id': self.exp_id,
+                  'output': all_model_outputs,
+                  'params': self.to_params(),
+                  }
+        self.dbinterface.save(record)
 
     def test_from_params(self):
-        # TODO
-        pass
+
+        log.info('Beginning experiment: {}'.format(self.exp_id))
+        if self.load_params['restore']:
+            loaded_run = self.load_run()
+            loaded_params = loaded_run['params']
+            loaded_state = loaded_run['state']
+
+            if loaded_params:
+                loaded_params.update(self.to_params())
+                self = self.from_params(**loaded_params)
+                self.from_state(loaded_state)
+
+        if self.exp_id is None:
+            error_msg = 'Cannot run an experiment without an exp_id'
+            log.critical(error_msg)
+            raise ExpIDError(error_msg)
+
+        self.base_cuda()
+
+        # Start the main training loop, if desired.
+        
+        self.test()
+
+        log.info('Validation complete!')
 
     def load_run(self):
 
