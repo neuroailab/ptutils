@@ -877,7 +877,7 @@ class TestRunner(Test):
     def test_enforce_exp_id(self):
         runner = self.test_class(exp_id=None, load_params={'restore': False})
         runner.load_params['restore'] = False
-        runner.train_params = {'num_steps':  10}
+        runner.train_params = {'num_steps': 10}
         with self.assertRaises(error.ExpIDError):
             runner.train_from_params()
 

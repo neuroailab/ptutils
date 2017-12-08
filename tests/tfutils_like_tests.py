@@ -175,6 +175,7 @@ def test_training():
 
     # Actually run the training.
     runner = ptutils.runner.Runner.init(**params)
+    print(runner)
     runner.train_from_params()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq) + 1 for initial save.
