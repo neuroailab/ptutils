@@ -359,7 +359,6 @@ class MongoInterface(DBInterface):
                     document[new_key] = popped_value
         return document
 
-
     def _load_tensor(self, document):
         """Replace ObjectIds with their corresponding gridFS data.
 
@@ -389,35 +388,8 @@ class MongoInterface(DBInterface):
                 document[key] = self._load_tensor(value)
         return document
 
-    def __load_tensor(self, value):
-        """Replace ObjectIds with their corresponding gridFS data.
 
-        Utility method to recurse through a document and gather all ObjectIds and
-        replace them one by one with their corresponding data from the gridFS collection.
-
-        Skips any entries with a key of '_id'.
-
-        Note that it modifies the document in place.
-
-        Args:
-            document: dictionary-like document, storable in mongodb.
-
-        Returns:
-            document: dictionary-like document, storable in mongodb.
-
-        """
-        if isinstance(value, dict):
-            return {k: self._binary_to_tensor(self.filesystem.get(v).read())
-                    if k != '_id' else self._load_tensor(v) for k, v in value.items()}
-                    # if k != '_id' else v for k, v in value.items()}
-        elif isinstance(value, list):
-            return [self._binary_to_tensor(self.filesystem.get(v).read())
-                    for v in value]
-        elif isinstance(value, ObjectId):
-            return self._binary_to_tensor(self.filesystem.get(value).read())
-        return value
-
-    def __save_tensors(self, value):
+    def _save_tensors(self, value):
         """Replace tensors with a reference to their location in gridFS.
 
         Utility method to recurse through a document and replace all tensors
@@ -468,59 +440,87 @@ class MongoInterface(DBInterface):
 
         return value
 
-    def _save_tensors(self, document):
-        """Replace tensors with a reference to their location in gridFS.
+    # def __load_tensor(self, value):
+    #     """Replace ObjectIds with their corresponding gridFS data.
 
-        Utility method to recurse through a document and replace all tensors
-        and store them in the gridfs, replacing the actual tensors with references to the
-        gridfs path.
+    #     Utility method to recurse through a document and gather all ObjectIds and
+    #     replace them one by one with their corresponding data from the gridFS collection.
 
-        Called by save()
+    #     Skips any entries with a key of '_id'.
 
-        Note that it modifies the document in place, although we return it, too
+    #     Note that it modifies the document in place.
 
-        Args:
-            document: dictionary like-document, storable in mongodb.
+    #     Args:
+    #         document: dictionary-like document, storable in mongodb.
 
-        Returns:
-            document: dictionary like-document, storable in mongodb.
+    #     Returns:
+    #         document: dictionary-like document, storable in mongodb.
 
-        """
-        for (key, value) in document.items():
+    #     """
+    #     if isinstance(value, dict):
+    #         return {k: self._binary_to_tensor(self.filesystem.get(v).read())
+    #                 if k != '_id' else self._load_tensor(v) for k, v in value.items()}
+    #                 # if k != '_id' else v for k, v in value.items()}
+    #     elif isinstance(value, list):
+    #         return [self._binary_to_tensor(self.filesystem.get(v).read())
+    #                 for v in value]
+    #     elif isinstance(value, ObjectId):
+    #         return self._binary_to_tensor(self.filesystem.get(value).read())
+    #     return value
 
-            if isinstance(value, torch.autograd.Variable):
-                value = {'_Variable_data': value.data}
+    # def __save_tensors(self, document):
+    #     """Replace tensors with a reference to their location in gridFS.
 
-            if isinstance(value, np.ndarray) or torch.is_tensor(value):
-                data_BSON = self._tensor_to_binary(value)
-                data_MD5 = hashlib.md5(data_BSON).hexdigest()
+    #     Utility method to recurse through a document and replace all tensors
+    #     and store them in the gridfs, replacing the actual tensors with references to the
+    #     gridfs path.
 
-                # Does this tensor match the hash of anything in the object
-                # already?
-                match = False
-                for tensor_id in self._old_tensor_ids:
-                    print('Checking if {} is already in the db... '.format(tensor_id))
-                    if data_MD5 == self.filesystem.get(tensor_id).md5:
-                        match = True
-                        # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
-                        document[key] = tensor_id
-                        self._old_tensor_ids.remove(tensor_id)
-                        self._new_tensor_ids.append(tensor_id)
-                if not match:
-                    # print('Tensor is not in the db. Inserting new gridfs file...')
-                    tensor_id = self.filesystem.put(self._tensor_to_binary(value))
-                    document[key] = tensor_id
-                    self._new_tensor_ids.append(tensor_id)
+    #     Called by save()
 
-            elif isinstance(value, dict):
-                document[key] = self._save_tensors(value)
-            elif isinstance(value, list):
-                document[key] = self._save_tensors(value)
+    #     Note that it modifies the document in place, although we return it, too
 
-            elif isinstance(value, np.number):
-                if isinstance(value, np.integer):
-                    document[key] = int(value)
-                elif isinstance(value, np.inexact):
-                    document[key] = float(value)
+    #     Args:
+    #         document: dictionary like-document, storable in mongodb.
 
-        return document
+    #     Returns:
+    #         document: dictionary like-document, storable in mongodb.
+
+    #     """
+    #     for (key, value) in document.items():
+
+    #         if isinstance(value, torch.autograd.Variable):
+    #             value = {'_Variable_data': value.data}
+
+    #         if isinstance(value, np.ndarray) or torch.is_tensor(value):
+    #             data_BSON = self._tensor_to_binary(value)
+    #             data_MD5 = hashlib.md5(data_BSON).hexdigest()
+
+    #             # Does this tensor match the hash of anything in the object
+    #             # already?
+    #             match = False
+    #             for tensor_id in self._old_tensor_ids:
+    #                 print('Checking if {} is already in the db... '.format(tensor_id))
+    #                 if data_MD5 == self.filesystem.get(tensor_id).md5:
+    #                     match = True
+    #                     # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
+    #                     document[key] = tensor_id
+    #                     self._old_tensor_ids.remove(tensor_id)
+    #                     self._new_tensor_ids.append(tensor_id)
+    #             if not match:
+    #                 # print('Tensor is not in the db. Inserting new gridfs file...')
+    #                 tensor_id = self.filesystem.put(self._tensor_to_binary(value))
+    #                 document[key] = tensor_id
+    #                 self._new_tensor_ids.append(tensor_id)
+
+    #         elif isinstance(value, dict):
+    #             document[key] = self._save_tensors(value)
+    #         elif isinstance(value, list):
+    #             document[key] = self._save_tensors(value)
+
+    #         elif isinstance(value, np.number):
+    #             if isinstance(value, np.integer):
+    #                 document[key] = int(value)
+    #             elif isinstance(value, np.inexact):
+    #                 document[key] = float(value)
+
+    #     return document
