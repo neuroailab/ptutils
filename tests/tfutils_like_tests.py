@@ -124,13 +124,15 @@ def setup_params(exp_id=None):
             'collection_name': 'ptutils_test'},
 
         'train_params': {
-            'num_steps': 50,
-            'train': True},
+            'num_steps': 50
+            },
 
-        'validation_params': {},
+        'validation_params': {
+            },
 
         'save_params': {
-            'metric_freq': 25},
+            'metric_freq': 25,
+            'val_freq': 10},
 
         'load_params': {
             'restore': False,
@@ -175,7 +177,7 @@ def test_training():
 
     # Actually run the training.
     runner = ptutils.runner.Runner.init(**params)
-    runner.train_from_params()
+    runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq'])
@@ -188,7 +190,7 @@ def test_training():
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
 
     runner = ptutils.runner.Runner.init(**revive_params)
-    runner.train_from_params()
+    runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
@@ -204,7 +206,7 @@ def test_training():
     expected_num_records = (params['train_params']['num_steps'] - previous_num_steps) // params['save_params']['metric_freq']
 
     runner = ptutils.runner.Runner.init(**params)
-    runner.train_from_params()
+    runner.train()
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
 
 def test_validation():
@@ -236,11 +238,24 @@ def test_validation():
 
     # actually run the model
     runner = ptutils.runner.Runner.init(**params)
-    runner.test_from_params()
+    runner.test()
 
     assert conn[params['dbinterface']['database_name']][params['dbinterface']
         ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
     r = runner.dbinterface.load({'exp_id': runner.exp_id})
+
+    # Test validation during training
+
+    params['exp_id'] = 'mnist_training'
+    params['train_params']['num_steps'] = 200
+    params['load_params']['restore'] = True
+    
+    # Revive the experiment using little more than load_params.
+    revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
+    revive_params['validation_params'] = {'num_steps': 100}
+
+    runner = ptutils.runner.Runner.init(**revive_params)
+    runner.train()
 
 if __name__ == '__main__':
     test_training()

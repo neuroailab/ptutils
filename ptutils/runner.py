@@ -86,6 +86,9 @@ class Runner(Base):
             error_msg = 'Cannot run an experiment without an exp_id'
             log.critical(error_msg)
             raise ExpIDError(error_msg)
+
+        # put tensors on GPU
+        runner.base_cuda()
         return runner
 
     @property
@@ -216,35 +219,9 @@ class Runner(Base):
                 log.info("Saving step {}".format(self.global_step))
                 self.dbinterface.save(record)
 
-            # if val_freq % 0:
-                # val_model_output = None
-                # for val_step in self.validation_params['num_steps']
-                # val_model_output = self.validation_step(val_model_output)
-            # You may want to do additional computation
-            # in between steps.
-            
-
-    def train_from_params(self, **params):
-        """Run the execution of an experiment.
-
-        This is the primary entrance to the Runner class.
-
-        """
-        log.info('Beginning experiment: {}'.format(self.exp_id))
-
-        if self.exp_id is None:
-            error_msg = 'Cannot run an experiment without an exp_id'
-            log.critical(error_msg)
-            raise ExpIDError(error_msg)
-
-        self.base_cuda()
-
-        # Start the main training loop, if desired.
-        if self.train_params['train']:
-            self.train()
-        else:
-            log.info('Skipping training.')
-        log.info('Training complete!')
+            if self.validation_params and self.global_step % self.save_params['val_freq'] == 0:
+                # validation
+                self.test()
 
     def predict(self, prev_output):
         """Define a single step of an experiment.
@@ -269,53 +246,15 @@ class Runner(Base):
 
         # Save desired results.
         record = {'exp_id': self.exp_id,
-                  'output': all_model_outputs,
+                  'test_output': all_model_outputs,
                   'params': self.to_params(),
                   }
         self.dbinterface.save(record)
 
-    def test_from_params(self):
-
-        log.info('Beginning experiment: {}'.format(self.exp_id))
-        # if self.load_params['restore']:
-        #     loaded_run = self.load_run()
-        #     loaded_params = loaded_run['params']
-        #     loaded_state = loaded_run['state']
-
-        #     if loaded_params:
-        #         loaded_params.update(self.to_params())
-        #         self = self.from_params(**loaded_params)
-        #         self.from_state(loaded_state)
-
-        # if self.exp_id is None:
-        #     error_msg = 'Cannot run an experiment without an exp_id'
-        #     log.critical(error_msg)
-        #     raise ExpIDError(error_msg)
-
-        self.base_cuda()
-
-        # Start the main training loop, if desired.
-
-        self.test()
-
-        log.info('Validation complete!')
-
     def load_run(self):
-
-        # if ['exp_id',] not in self.load_params['load_query'].keys():
-        #     error_msg = 'Cannot load an experiment without an exp_id'
-        #     log.critical(error_msg)
-        #     ExpIDError(error_msg)
-
-        # if (not self.exp_id == self.load_params['load_query']['exp_id']) and len(self.dbinterface.load({'exp_id': self.exp_id})) > 0:
-        #     # if not resuming training, exp_id must be unique
-        #     error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
-        #     log.critical(error_msg)
-        #     raise ExpIDError(error_msg)
 
         load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
         all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
-        # all_results = self.dbinterface.load({'exp_id': self.load_params['exp_id']})
 
         try:
             # Load most recent run.
