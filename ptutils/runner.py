@@ -49,11 +49,8 @@ class Runner(Base):
 
         """
         super(Runner, self).__init__(**kwargs)
-        # Restore previous run.
-        # no loaded params -- load from user specified params
 
         # Core bases.
-
         self.model = model
         self.dbinterface = dbinterface
         self.dataprovider = dataprovider
@@ -118,57 +115,57 @@ class Runner(Base):
         else:
             self._params['global_step'] = value
 
-    @property
-    def model(self):
-        """Get the model."""
-        return self._bases['model']
+    # @property
+    # def model(self):
+    #     """Get the model."""
+    #     return self._bases['model']
 
-    @model.setter
-    def model(self, value):
-        self._bases['model'] = value
+    # @model.setter
+    # def model(self, value):
+    #     self._bases['model'] = value
 
-    @property
-    def dbinterface(self):
-        return self._bases['dbinterface']
+    # @property
+    # def dbinterface(self):
+    #     return self._bases['dbinterface']
 
-    @dbinterface.setter
-    def dbinterface(self, value):
-        self._bases['dbinterface'] = value
+    # @dbinterface.setter
+    # def dbinterface(self, value):
+    #     self._bases['dbinterface'] = value
 
-    @property
-    def dataprovider(self):
-        return self._bases['dataprovider']
+    # @property
+    # def dataprovider(self):
+    #     return self._bases['dataprovider']
 
-    @dataprovider.setter
-    def dataprovider(self, value):
-        self._bases['dataprovider'] = value
+    # @dataprovider.setter
+    # def dataprovider(self, value):
+    #     self._bases['dataprovider'] = value
 
-    @property
-    def save_params(self):
-        """Get the save parameters."""
-        return self._params['save_params']
+    # @property
+    # def save_params(self):
+    #     """Get the save parameters."""
+    #     return self._params['save_params']
 
-    @save_params.setter
-    def save_params(self, value):
-        self._params['save_params'] = value
+    # @save_params.setter
+    # def save_params(self, value):
+    #     self._params['save_params'] = value
 
-    @property
-    def load_params(self):
-        """Get the load parameters."""
-        return self._params['load_params']
+    # @property
+    # def load_params(self):
+    #     """Get the load parameters."""
+    #     return self._params['load_params']
 
-    @load_params.setter
-    def load_params(self, value):
-        self._params['load_params'] = value
+    # @load_params.setter
+    # def load_params(self, value):
+    #     self._params['load_params'] = value
 
-    @property
-    def train_params(self):
-        """Get the train parameters."""
-        return self._params['train_params']
+    # @property
+    # def train_params(self):
+    #     """Get the train parameters."""
+    #     return self._params['train_params']
 
-    @train_params.setter
-    def train_params(self, value):
-        self._params['train_params'] = value
+    # @train_params.setter
+    # def train_params(self, value):
+    #     self._params['train_params'] = value
 
 # -- Runner Methods ------------------------------------------------------------
 

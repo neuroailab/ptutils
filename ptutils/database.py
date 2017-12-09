@@ -68,7 +68,6 @@ class MongoInterface(DBInterface):
 
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
-        #self.collection = self.database[self.collection_name + '.files']
         self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
 
@@ -346,7 +345,7 @@ class MongoInterface(DBInterface):
     def _de_mongoify(self, document):
         # untested
         for (key, value) in document.items():
-            new_key = key.replace('__', '.') # mongo cannot use '.' in doc key
+            new_key = key.replace('__', '.')  # mongo cannot use '.' in doc key
             popped_value = document.pop(key)
             if isinstance(value, dict):
                 document[new_key] = self._de_mongoify(popped_value)
@@ -387,7 +386,6 @@ class MongoInterface(DBInterface):
             elif isinstance(value, dict):
                 document[key] = self._load_tensor(value)
         return document
-
 
     def _save_tensors(self, value):
         """Replace tensors with a reference to their location in gridFS.
