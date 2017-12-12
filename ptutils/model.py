@@ -83,9 +83,6 @@ class Model(Base):
         input_var = input_var.cuda(self.devices) if self.use_cuda else input_var
         return self.net(input_var)
 
-    def inference(self, input):
-        return self.forward(input)
-
     def loss(self, output, target):
         target_var = Variable(target)
         target_var = target_var.cuda(self.devices) if self.use_cuda else target_var

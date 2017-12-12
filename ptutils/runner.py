@@ -11,18 +11,20 @@ log.setLevel('DEBUG')
 
 
 class Runner(Base):
-    """Summary.
+    """This is the primary PTUtils class for running an experiment.
+
+    The runner is the top level class of PTUtils. It organizes all of the 
+    other core PTUtils objects.
 
     Attributes:
-        dataprovider (TYPE): Description.
-        dbinterface (TYPE): Description.
-        exp_id (TYPE): Description.
-        global_step (int): Description.
-        load_params (TYPE): Description.
-        model (TYPE): Description.
-        save_params (TYPE): Description.
-        train_params (TYPE): Description.
-
+        exp_id (str): Experiment ID for saving experiment to the database.
+        model (:class:`Model`): Model (e.g. AlexNet, VGG16).
+        global_step (int): The number of batches seen by the model during training.
+        dbinterface (:class:`DBInterface`): Object to communicate with the database.
+        dataprovider (:class:`DataProvider`): Provides training and validation data for the model.
+        train_params (dict): Dictionary of parameters for training.
+        save_params (dict): Dictionary of parameters for saving experiments.
+        load_params (dict): Dictionary of parameters for loading past experiments.
     """
 
     def __init__(self,
@@ -38,14 +40,14 @@ class Runner(Base):
         """Initialize the :class:`Runner` class.
 
         Args:
-            exp_id (str, optional): Description.
-            model (Model, optional): Description.
-            dbinterface (DBInterface, optional): Description.
-            dataprovider (DataProvider, optional): Description.
-            train_params (dict, optional): Description.
-            save_params (dict, optional): Description.
-            load_params (dict, optional): Description.
-            **kwargs: Additional attr required by runner.
+            exp_id (str): Experiment ID for saving experiment to the database.
+            model (:class:`Model`): Model (e.g. AlexNet, VGG16).
+            global_step (int): The number of batches seen by the model during training.
+            dbinterface (:class:`DBInterface`): Object to communicate with the database.
+            dataprovider (:class:`DataProvider`): Provides training and validation data for the model.
+            train_params (dict): Dictionary of parameters for training.
+            save_params (dict): Dictionary of parameters for saving experiments.
+            load_params (dict): Dictionary of parameters for loading past experiments.
 
         """
         super(Runner, self).__init__(**kwargs)
@@ -67,6 +69,37 @@ class Runner(Base):
 
     @classmethod
     def init(cls, **params):
+        """ Function for user to initialize :class:`Runner`.
+
+        This is the user's primary means of initializing the :class:`Runner`. The function is 
+        distinct from the :class:`Runner`'s :func:__init__, which is used in constructing the runner
+        in :class:`Base`'s :func:`from_params`s.  
+
+        A simple use case for loading a previous experiment::
+
+            params = {
+
+            'func': ptutils.runner.Runner,
+            'name': 'MNISTRunner',
+            'exp_id': 'example_experiment',
+            'load_params': {
+                'restore': False,
+                'dbinterface': {
+                    'func': ptutils.database.MongoInterface,
+                    'name': 'mongo',
+                    'port': 27017,
+                    'host': 'localhost',
+                    'database_name': 'ptutils_test',
+                    'collection_name': 'ptutils_test'},
+                'exp_id': 'mnist',
+                'restore_params': None,
+                'restore_mapping': None}}
+
+            runner = ptutils.runner.Runner.init(**params)
+            runner.train()
+        """
+
+
         runner = Base.from_params(**params)
         if runner.load_params['restore']:
             loaded_run = runner.load_run()
@@ -104,8 +137,6 @@ class Runner(Base):
 
     @global_step.setter
     def global_step(self, value):
-        # if value <= self._params['global_step']:
-            # raise StepError('The global step should have been incremented.')
         if value is None:
             self._params['global_step'] = value
         elif value > (self._params['global_step'] + 1):
@@ -115,77 +146,29 @@ class Runner(Base):
         else:
             self._params['global_step'] = value
 
-    # @property
-    # def model(self):
-    #     """Get the model."""
-    #     return self._bases['model']
-
-    # @model.setter
-    # def model(self, value):
-    #     self._bases['model'] = value
-
-    # @property
-    # def dbinterface(self):
-    #     return self._bases['dbinterface']
-
-    # @dbinterface.setter
-    # def dbinterface(self, value):
-    #     self._bases['dbinterface'] = value
-
-    # @property
-    # def dataprovider(self):
-    #     return self._bases['dataprovider']
-
-    # @dataprovider.setter
-    # def dataprovider(self, value):
-    #     self._bases['dataprovider'] = value
-
-    # @property
-    # def save_params(self):
-    #     """Get the save parameters."""
-    #     return self._params['save_params']
-
-    # @save_params.setter
-    # def save_params(self, value):
-    #     self._params['save_params'] = value
-
-    # @property
-    # def load_params(self):
-    #     """Get the load parameters."""
-    #     return self._params['load_params']
-
-    # @load_params.setter
-    # def load_params(self, value):
-    #     self._params['load_params'] = value
-
-    # @property
-    # def train_params(self):
-    #     """Get the train parameters."""
-    #     return self._params['train_params']
-
-    # @train_params.setter
-    # def train_params(self, value):
-    #     self._params['train_params'] = value
-
 # -- Runner Methods ------------------------------------------------------------
 
     def setup_eval(self, prev_output):
-        """Set up the model for evaluation."""
+        """Set up the model for evaluation.
+    
+        If anything needs to be changed about the experiment for inference 
+        (e.g. the model's Dropout or Batch Norm), that should be taken care of here.
+        """
         self.model.eval()
         return prev_output
 
     def step(self, prev_output):
         """Define a single step of an experiment.
 
-        This must increment the global step. A common use case
-        will be to simply make a forward pass update the model.
+        A common use case will be to have the step correspond to a
+        batch update (e.g. calling `self.model.step`). 
 
-        Formally, this will call model.forward(), whose output should
-        be used by the dataprovider to provide the next batch of data.
+        *This function must increment the `global_step`.* 
 
         """
         data = self.dataprovider.provide(prev_output, mode='train')
         output = self.model.step(data)
+        self.global_step += 1
 
         log.info('step: {}; loss: {}'.format(self.global_step,
                                              output['loss'].data[0]))
@@ -201,8 +184,6 @@ class Runner(Base):
         model_output = None
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
-
-            self.global_step += 1
 
             if self.global_step % self.save_params['metric_freq'] == 0:
 
@@ -220,20 +201,21 @@ class Runner(Base):
                 # validation
                 self.test()
 
-    def predict(self, prev_output):
-        """Define a single step of an experiment.
-        Formally, this will call model.forward(), whose output should
-        be used by the dataprovider to provide the next batch of data.
+    def predict(self, prev_output=None):
+        """Perform a single inference pass.
+        
+        Args:
+            prev_output (Object, optional): Experiment ID for saving experiment to the database.
 
+        Formally, this will call model.forward(). 
         """
         data = self.dataprovider.provide(prev_output, mode='test')[0]
-        output = self.model.inference(data)
+        output = self.model.forward(data)
         return output
         
 
     def test(self):
-        """Perform inference.
-
+        """Perform inference for several batches of data and save the result.
         """
         model_output = None
         all_model_outputs = []
@@ -249,9 +231,15 @@ class Runner(Base):
         self.dbinterface.save(record)
 
     def load_run(self):
+        """ Load previous experiment from database.
+        
+        Uses the parameters in `self.load_params` to load a previous
+        experiment. If multiple entries match the given query, 
+
+        """
 
         load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
-        all_results = load_dbinterface.load({'exp_id': self.load_params['exp_id']})
+        all_results = load_dbinterface.load(self.load_params['query'])
 
         try:
             # Load most recent run.

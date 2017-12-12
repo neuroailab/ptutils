@@ -143,7 +143,7 @@ def setup_params(exp_id=None):
                 'host': 'localhost',
                 'database_name': 'ptutils_test',
                 'collection_name': 'ptutils_test'},
-            'exp_id': exp_id,
+            'query': {'exp_id': exp_id},
             'restore_params': None,
             'restore_mapping': None}}
     return params
@@ -225,7 +225,7 @@ def test_validation():
     exp_id = 'mnist_validation'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
-    params['load_params']['exp_id'] = 'mnist_training'
+    params['load_params']['query'] = {'exp_id': 'mnist_training'}
     params['validation_params'] = {'num_steps': 100}
 
     # Clear database.

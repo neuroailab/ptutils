@@ -164,7 +164,7 @@ class Base(object):
         for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
-                    base.state_dict(destination, prefix + name + '.')
+                    base.cpu().state_dict(destination, prefix + name + '.')
                 except AttributeError as state_error:
                     log.warning(state_error)
             else:
