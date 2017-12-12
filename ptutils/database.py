@@ -217,15 +217,7 @@ class MongoInterface(DBInterface):
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
         return all_results
-        # if all_results:
-        #     if len(all_results) > 1:
-        #         return all_results
-        #     elif len(all_results) == 1:
-        #         return all_results[0]
-        #     else:
-        #         return None
-        # else:
-        #     return None
+
 
     def delete(self, object_id):
         """Delete a specific document from the collection based on the objectId.

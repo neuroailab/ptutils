@@ -148,17 +148,16 @@ class Runner(Base):
 
 # -- Runner Methods ------------------------------------------------------------
 
-    def setup_eval(self, prev_output):
-        """Set up the model for evaluation.
+    def setup_eval(self):
+        """ Set up the model for evaluation.
     
         If anything needs to be changed about the experiment for inference 
         (e.g. the model's Dropout or Batch Norm), that should be taken care of here.
         """
         self.model.eval()
-        return prev_output
 
     def step(self, prev_output):
-        """Define a single step of an experiment.
+        """ Define a single step of an experiment.
 
         A common use case will be to have the step correspond to a
         batch update (e.g. calling `self.model.step`). 
@@ -175,7 +174,7 @@ class Runner(Base):
         return output        
 
     def train(self):
-        """Define the primary training loop.
+        """ Define the primary training loop.
 
         The default behavior is to step the trainer and
         save intermediate results.
@@ -202,7 +201,7 @@ class Runner(Base):
                 self.test()
 
     def predict(self, prev_output=None):
-        """Perform a single inference pass.
+        """ Perform a single inference pass.
         
         Args:
             prev_output (Object, optional): Experiment ID for saving experiment to the database.
@@ -215,8 +214,9 @@ class Runner(Base):
         
 
     def test(self):
-        """Perform inference for several batches of data and save the result.
+        """ Perform inference for several batches of data and save the result.
         """
+        self.setup_eval()
         model_output = None
         all_model_outputs = []
         for step in range(self.validation_params['num_steps']):
@@ -234,7 +234,8 @@ class Runner(Base):
         """ Load previous experiment from database.
         
         Uses the parameters in `self.load_params` to load a previous
-        experiment. If multiple entries match the given query, 
+        experiment. If multiple entries match the given query, the most
+        recent entry in the database is returned.
 
         """
 
@@ -251,11 +252,21 @@ class Runner(Base):
 
     @staticmethod
     def _replace_params(replacement, to_replace):
+        """ Replace entries in :param:to_replace with :param:replacement key/val pairs
+        
+        This function recurses through the :param:to_replace dictionary and replaces
+        the key/val pairs with any keys specified in :param:replacement. If any values
+        are dictionaries, only the keys specified within that dictionary are replaced. 
+        
+        Args:
+            replacement (dict): Dictionary with key/val pairs to use for replacement
+            to_replace (dict): Dictionary whose key/val pairs will be replaced
+
+        """
         for (key, value) in replacement.items():
             if isinstance(value, dict) and (key in to_replace.keys()):
                 to_replace[key] = Runner._replace_params(value, to_replace[key])
             else:
-                # if value is not None and not isinstance(value, type(None)):
                 if value is not type(None):
                     to_replace[key] = value
         return to_replace

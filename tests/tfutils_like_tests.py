@@ -78,6 +78,7 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
 
 
 def setup_params(exp_id=None):
+    
     params = {
         'func': ptutils.runner.Runner,
         'name': 'MNISTRunner',
@@ -226,7 +227,7 @@ def test_validation():
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
     params['load_params']['query'] = {'exp_id': 'mnist_training'}
-    params['validation_params'] = {'num_steps': 100}
+    params['validation_params'] = {'num_steps': 10}
 
     # Clear database.
     conn = pm.MongoClient(
@@ -252,7 +253,7 @@ def test_validation():
     
     # Revive the experiment using little more than load_params.
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
-    revive_params['validation_params'] = {'num_steps': 100}
+    revive_params['validation_params'] = {'num_steps': 10}
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
