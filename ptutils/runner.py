@@ -156,6 +156,14 @@ class Runner(Base):
         """
         self.model.eval()
 
+    def setup_train(self):
+        """ Set up the model for training.
+    
+        If anything needs to be changed about the experiment for inference 
+        (e.g. the model's Dropout or Batch Norm), that should be taken care of here.
+        """
+        self.model.train()
+
     def step(self, prev_output):
         """ Define a single step of an experiment.
 
@@ -181,6 +189,7 @@ class Runner(Base):
 
         """
         model_output = None
+        self.setup_train()
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
 
@@ -251,22 +260,33 @@ class Runner(Base):
             raise LoadError(error_msg)
 
     @staticmethod
-    def _replace_params(replacement, to_replace):
+    def _replace_params(replacement, to_replace, parent_device=False):
         """ Replace entries in :param:to_replace with :param:replacement key/val pairs
         
         This function recurses through the :param:to_replace dictionary and replaces
         the key/val pairs with any keys specified in :param:replacement. If any values
-        are dictionaries, only the keys specified within that dictionary are replaced. 
+        are dictionaries, only the keys specified within that dictionary are replaced.
+
+        Additionally, if any devices are specified in `replacement`, all children
+        of that dictionary will have their devices set to `None' such that 
+        `base.base_cuda` will override the child device with its parent.
         
         Args:
             replacement (dict): Dictionary with key/val pairs to use for replacement
             to_replace (dict): Dictionary whose key/val pairs will be replaced
+            parent_device (boolean): Specifies whether the dictionary's parent 
+            had their 'device' replaced
 
         """
         for (key, value) in replacement.items():
             if isinstance(value, dict) and (key in to_replace.keys()):
-                to_replace[key] = Runner._replace_params(value, to_replace[key])
+                if 'devices' in replacement.keys():
+                    to_replace[key] = Runner._replace_params(value, to_replace[key], True)
+                else:
+                    to_replace[key] = Runner._replace_params(value, to_replace[key], parent_device or False)
             else:
                 if value is not type(None):
                     to_replace[key] = value
+                if parent_device and ('devices' in to_replace.keys()):
+                    to_replace['devices'] = None
         return to_replace

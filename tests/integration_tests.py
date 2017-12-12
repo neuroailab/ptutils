@@ -181,7 +181,7 @@ def test_training():
     runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq'])
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])
 
     # Run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
@@ -200,10 +200,11 @@ def test_training():
         runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
-    # Run 100 more steps but save to a new experiment id.
+    # Run 100 more steps but save to a new experiment id and on different GPU.
     params['exp_id'] = new_exp_id
     previous_num_steps = params['train_params']['num_steps']
     params['train_params']['num_steps'] = 200
+    params['model']['devices'] = 1
     expected_num_records = (params['train_params']['num_steps'] - previous_num_steps) // params['save_params']['metric_freq']
 
     runner = ptutils.runner.Runner.init(**params)

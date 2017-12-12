@@ -26,24 +26,6 @@ class Model(Base):
         self.net = net
         self.criterion = criterion
         self.optimizer = optimizer
-
-        # self.model = torch.nn.DataParallel(self.model).cuda()
-
-        # use_cuda = torch.cuda.is_available()
-        # dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-
-        # if use_cuda:
-        #     self.net.cuda()
-        #     self.criterion.cuda()
-
-        # # Select mode
-        # if mode == 'train':
-        #     self.model.train()
-        #     volatile = False
-        # else:
-        #     self.model.eval()
-        #     volatile = True
-
         self._loss = None
 
     @property
@@ -98,6 +80,10 @@ class Model(Base):
     def eval(self):
         """Set up model for evaluation."""
         self.net.eval()
+
+    def train(self):
+        """Set up model for training."""
+        self.net.train()
 
     def optimize(self, loss=None):
         self.compute_gradients(loss=loss)
