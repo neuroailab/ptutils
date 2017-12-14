@@ -17,7 +17,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
-# from .error import StepError, ExpIDError, ParamError
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -87,6 +86,17 @@ class Base(object):
         self._params['use_cuda'] = value
 
     def to_params(self):
+        """Generate dictionary representation of base.
+
+        The params dict of a given base contains the following key-value
+        pairs:
+            'func' (cls): its class
+            'name' (str): name of base
+            'devices' (list[ints]): devices to which it belongs
+            'use_cuda' (bool): whether base should be moved to its devices
+
+
+        """
         params = collections.OrderedDict()
         params['func'] = self.__class__
         state_dict = collections.OrderedDict()
