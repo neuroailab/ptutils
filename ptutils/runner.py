@@ -105,12 +105,11 @@ class Runner(Base):
             loaded_run = runner.load_run()
             loaded_params = loaded_run['params']
             loaded_state = loaded_run['state']
-
+            
             if loaded_params:
-                # loaded_params.update(runner.to_params())
                 loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
                 runner = Runner.from_params(**loaded_params)
-                runner.from_state(loaded_state)
+                runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
 
         if runner.exp_id is None:
             error_msg = 'Cannot run an experiment without an exp_id'
@@ -192,9 +191,7 @@ class Runner(Base):
         self.setup_train()
         for step in range(self.global_step, self.train_params['num_steps']):
             model_output = self.step(model_output)
-
             if self.global_step % self.save_params['metric_freq'] == 0:
-
                 # Save desired results.
                 record = {'exp_id': self.exp_id,
                           'step': self.global_step,
@@ -280,6 +277,12 @@ class Runner(Base):
         """
         for (key, value) in replacement.items():
             if isinstance(value, dict) and (key in to_replace.keys()):
+                if not isinstance(to_replace[key], dict): 
+                    # this is necessary for the parameter remapping
+                    # because if runner['load_params']['restore_params'] = None,
+                    # or runner['load_params']['restore_mapping'] = None,
+                    # this subsequent assignments won't be possible
+                    to_replace[key] = {}
                 if 'devices' in replacement.keys():
                     to_replace[key] = Runner._replace_params(value, to_replace[key], True)
                 else:

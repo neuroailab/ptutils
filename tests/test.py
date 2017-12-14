@@ -205,7 +205,6 @@ class TestBase(unittest.TestCase):
             base.to_state().keys(),
             ['linear.weight', 'linear.bias',
              'child.child_linear.weight', 'child.child_linear.bias'])
-
     # Test from_state ---------------------------------------------------------
 
     def test_from_state(self):
@@ -236,7 +235,7 @@ class TestBase(unittest.TestCase):
             self.assertTrue(torch.equal(s, r))
 
     def test_from_state_restore_params_None(self):
-        """Demonstate how to selectively restore parameters."""
+        """Demonstrate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
         # Test None, which should restore all params.
@@ -246,7 +245,7 @@ class TestBase(unittest.TestCase):
             self.assertTrue(torch.equal(old, new))
 
     def test_from_state_restore_params_list_of_strings(self):
-        """Demonstate how to selectively restore parameters."""
+        """Demonstrate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
         # Test list of strings.
@@ -257,7 +256,7 @@ class TestBase(unittest.TestCase):
         self.assertFalse(torch.equal(state['linear.bias'], s['linear.bias']))
 
     def test_from_state_restore_params_regex(self):
-        """Demonstate how to selectively restore parameters."""
+        """Demonstrate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
         # Test regex.
@@ -268,7 +267,7 @@ class TestBase(unittest.TestCase):
             state['linear.weight'], s['linear.weight']))
 
     def test_from_state_restore_params_invalid(self):
-        """Demonstate how to selectively restore parameters."""
+        """Demonstrate how to selectively restore parameters."""
         state = self.setup_base().to_state()
 
         # Test invalid type (should raise TypeError).
@@ -410,7 +409,6 @@ class TestBase(unittest.TestCase):
         self.assertTrue(base.child.use_cuda)
         self.assertEqual(base.devices, 0)
         self.assertEqual(base.child.devices, 0)
-
 
         base = self.test_class()
         child = self.test_class()

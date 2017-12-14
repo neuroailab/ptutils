@@ -146,7 +146,9 @@ def setup_params(exp_id=None):
                 'collection_name': 'ptutils_test'},
             'query': {'exp_id': exp_id},
             'restore_params': None,
-            'restore_mapping': None}}
+            'restore_mapping': None
+            }
+            }
     return params
 
 
@@ -259,6 +261,58 @@ def test_validation():
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
 
+class ThreeLayerMNIST(torch.nn.Module, ptutils.base.Base):
+    def __init__(self, **kwargs):
+        super(ThreeLayerMNIST, self).__init__()
+        ptutils.base.Base.__init__(self, **kwargs)
+
+        self.new_layer1 = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.new_layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.new_layer3 = nn.Sequential(
+            nn.Conv2d(32, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.fc = nn.Linear(3 * 3 * 32, 10)
+
+    def forward(self, x):
+        out = self.new_layer1(x)
+        out = self.new_layer2(out)
+        out = self.new_layer3(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
+def test_remapping():
+
+    ''' Illustrate remapping of layers. 
+    This test assumes that test_training function has run first.
+    '''
+    
+    exp_id = 'mnist_remapped'
+    params = setup_params(exp_id)
+    params['load_params']['restore'] = True
+    params['load_params']['query'] = {'exp_id': 'mnist_training'}
+
+    
+    params['model']['net']['func'] = ThreeLayerMNIST
+    params['model']['net']['name'] = 'threelayermnist'
+    params['load_params']['restore_mapping'] = {key: re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
+    params['load_params']['restore_params'] = re.compile(r'fc')
+
+    runner = ptutils.runner.Runner.init(**params)
+    runner.train()
+
+
 if __name__ == '__main__':
     test_training()
     test_validation()
+    test_remapping()
