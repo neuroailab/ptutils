@@ -78,6 +78,7 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
 
 
 def setup_params(exp_id=None):
+    
     params = {
         'func': ptutils.runner.Runner,
         'name': 'MNISTRunner',
@@ -143,7 +144,7 @@ def setup_params(exp_id=None):
                 'host': 'localhost',
                 'database_name': 'ptutils_test',
                 'collection_name': 'ptutils_test'},
-            'exp_id': exp_id,
+            'query': {'exp_id': exp_id},
             'restore_params': None,
             'restore_mapping': None}}
     return params
@@ -180,7 +181,7 @@ def test_training():
     runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
-    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] / params['save_params']['metric_freq'])
+    assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])
 
     # Run another 50 steps of training on the same experiment id.
     params['train_params']['num_steps'] = 100
@@ -199,10 +200,11 @@ def test_training():
         runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
 
-    # Run 100 more steps but save to a new experiment id.
+    # Run 100 more steps but save to a new experiment id and on different GPU.
     params['exp_id'] = new_exp_id
     previous_num_steps = params['train_params']['num_steps']
     params['train_params']['num_steps'] = 200
+    params['model']['devices'] = 1
     expected_num_records = (params['train_params']['num_steps'] - previous_num_steps) // params['save_params']['metric_freq']
 
     runner = ptutils.runner.Runner.init(**params)
@@ -225,8 +227,8 @@ def test_validation():
     exp_id = 'mnist_validation'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
-    params['load_params']['exp_id'] = 'mnist_training'
-    params['validation_params'] = {'num_steps': 100}
+    params['load_params']['query'] = {'exp_id': 'mnist_training'}
+    params['validation_params'] = {'num_steps': 10}
 
     # Clear database.
     conn = pm.MongoClient(
@@ -252,7 +254,7 @@ def test_validation():
     
     # Revive the experiment using little more than load_params.
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
-    revive_params['validation_params'] = {'num_steps': 100}
+    revive_params['validation_params'] = {'num_steps': 10}
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()

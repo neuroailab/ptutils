@@ -12,7 +12,7 @@ import os
 import re
 import logging
 import collections
-
+import copy 
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -174,7 +174,8 @@ class Base(object):
         for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
-                    base.state_dict(destination, prefix + name + '.')
+                    copied_base = copy.deepcopy(base)
+                    copied_base.cpu().state_dict(destination, prefix + name + '.')
                 except AttributeError as state_error:
                     log.warning(state_error)
             else:
