@@ -411,7 +411,6 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.devices, 0)
         self.assertEqual(base.child.devices, 0)
 
-
         base = self.test_class()
         child = self.test_class()
         base.child = child
@@ -611,7 +610,6 @@ class TestMongoInterface(Test):
         self.dbinterface.save(doc)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save'})
-        print(self.conn[self.database_name].collection_names())
         self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r.next())
 
     def test_save_numpy_array(self):
@@ -702,25 +700,6 @@ class TestModel(Test):
         pass
 
 
-# class TestMNISTModel(Test):
-
-#     def test_from_params(self):
-#         model_params = {
-#             'name': 'MNIST',
-#             'devices': [0, 1],
-#             'net': model.ConvMNIST,
-#             'fc': 'fc',
-#             'criterion': {
-#                 {nn.CrossEntropyLoss: {}}},
-#             'optimizer': '',
-#             }
-
-#         mnist = model.Model.from_params(model_params)
-#         self.log.info(mnist)
-#         self.log.info(mnist._params)
-#         self.log.info(mnist.to_params())
-
-
 class TestRunner(Test):
 
     @classmethod
@@ -745,10 +724,7 @@ class TestRunner(Test):
         params = {'func': self.test_class,
                   'exp_id': 'test_exp_id',
                   'global_step': 10}
-        print(self.test_class)
         runner_obj = self.test_class.from_params(**params)
-        print(type(runner_obj))
-        print(runner_obj.to_params())
         self.assertDictContainsSubset(params, runner_obj.to_params())
 
     @unittest.skip('skipping...')
@@ -874,12 +850,13 @@ class TestRunner(Test):
 
         return params
 
+    @unittest.skip('skipping...')
     def test_enforce_exp_id(self):
-        runner = self.test_class(exp_id=None, load_params={'restore': False})
+        runner = self.test_class.init(exp_id=None, load_params={'restore': False})
         runner.load_params['restore'] = False
         runner.train_params = {'num_steps': 10}
         with self.assertRaises(error.ExpIDError):
-            runner.train_from_params()
+            runner.train()
 
     @staticmethod
     def asserts_for_record(r, params, train=False):
