@@ -213,7 +213,6 @@ class MongoInterface(DBInterface):
             start = time.time()
             all_results = [self._de_mongoify(
                 self._load_tensor(doc)) for doc in results]
-            print('Time spend loading all results: {}'.format(time.time() - start))
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
         return all_results
@@ -249,8 +248,8 @@ class MongoInterface(DBInterface):
         Returns:
             BSON Binary object a pickled tensor.
         """
-        # return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
-        return Binary(jsonpickle.encode(tensor))
+        return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
+        # return Binary(jsonpickle.encode(tensor))
         # return jsonpickle.encode(tensor)
 
     def _binary_to_tensor(self, binary):
@@ -265,8 +264,8 @@ class MongoInterface(DBInterface):
             Tensor of arbitrary dimension.
 
         """
-        # return pickle.loads(binary)
-        return jsonpickle.decode(binary)
+        return pickle.loads(binary)
+        # return jsonpickle.decode(binary)
 
     def _replace(self, document, replace='.', replacement='__'):
         """Replace `replace` in dictionary keys with `replacement`."""
@@ -291,8 +290,7 @@ class MongoInterface(DBInterface):
                 try:
                     # if variable is on GPU
                     document[key] = value.data.cpu()
-                except Exception as e:
-                    print(e)
+                except Exception:
                     document[key] = value.data
         return document
 
