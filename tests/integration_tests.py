@@ -20,29 +20,18 @@ instance is running.
 
 from __future__ import division, print_function, absolute_import
 
-import os
-import re
 import sys
-import time
-import errno
-import shutil
-import logging
 import pymongo as pm
-import unittest
-import numpy as np
-from bson.objectid import ObjectId
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 
 sys.path.insert(0, '../')
-# from ptutils import base, data, error, model, runner, database
 import ptutils
 
 LOG_LEVEL = 'WARNING'
 MONGO_PORT = 27017
-CUDA = 3
+CUDA = 0
 
 
 class MNIST(torch.nn.Module, ptutils.base.Base):
@@ -78,7 +67,7 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
 
 
 def setup_params(exp_id=None):
-    
+
     params = {
         'func': ptutils.runner.Runner,
         'name': 'MNISTRunner',
@@ -126,10 +115,10 @@ def setup_params(exp_id=None):
 
         'train_params': {
             'num_steps': 50
-            },
+        },
 
         'validation_params': {
-            },
+        },
 
         'save_params': {
             'metric_freq': 25,
@@ -211,8 +200,8 @@ def test_training():
     runner.train()
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
 
-def test_validation():
 
+def test_validation():
     """Illustrate validation.
 
     This is a test illustrating how to compute performance on a trained model on a new dataset,
@@ -222,7 +211,6 @@ def test_validation():
     (The test shows how the record can be loaded for inspection.)
 
     """
-
     # specify the parameters for the validation
     exp_id = 'mnist_validation'
     params = setup_params(exp_id)
@@ -234,30 +222,30 @@ def test_validation():
     conn = pm.MongoClient(
         host=params['dbinterface']['host'], port=params['dbinterface']['port'])
     conn[params['dbinterface']['database_name']][params['dbinterface']
-        ['collection_name']].delete_many({'exp_id': params['exp_id']})
+                                                 ['collection_name']].delete_many({'exp_id': params['exp_id']})
     assert conn[params['dbinterface']['database_name']][params['dbinterface']
-        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
+                                                        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
 
     # actually run the model
     runner = ptutils.runner.Runner.init(**params)
     runner.test()
 
     assert conn[params['dbinterface']['database_name']][params['dbinterface']
-        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
-    r = runner.dbinterface.load({'exp_id': runner.exp_id})
+                                                        ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
 
     # Test validation during training
 
     params['exp_id'] = 'mnist_training'
     params['train_params']['num_steps'] = 200
     params['load_params']['restore'] = True
-    
+
     # Revive the experiment using little more than load_params.
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
     revive_params['validation_params'] = {'num_steps': 10}
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
+
 
 if __name__ == '__main__':
     test_training()
