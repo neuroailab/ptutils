@@ -21,6 +21,7 @@ instance is running.
 from __future__ import division, print_function, absolute_import
 
 import sys
+import time
 import pymongo as pm
 
 import torch
@@ -169,6 +170,8 @@ def test_training():
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 
+    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
+
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])
 
@@ -181,6 +184,8 @@ def test_training():
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
+
+    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
@@ -198,6 +203,8 @@ def test_training():
 
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
+
+    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
 
 
