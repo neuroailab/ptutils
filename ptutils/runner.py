@@ -1,5 +1,6 @@
 """ptutils Runner."""
 
+import copy
 import logging
 
 from ptutils.base import Base
@@ -11,9 +12,9 @@ log.setLevel('DEBUG')
 
 
 class Runner(Base):
-    """This is the primary PTUtils class for running an experiment.
+    """The primary PTUtils class for running an experiment.
 
-    The runner is the top level class of PTUtils. It organizes all of the 
+    The runner is the top level class of PTUtils. It organizes all of the
     other core PTUtils objects.
 
     Attributes:
@@ -25,6 +26,7 @@ class Runner(Base):
         train_params (dict): Dictionary of parameters for training.
         save_params (dict): Dictionary of parameters for saving experiments.
         load_params (dict): Dictionary of parameters for loading past experiments.
+
     """
 
     def __init__(self,
@@ -69,11 +71,11 @@ class Runner(Base):
 
     @classmethod
     def init(cls, **params):
-        """ Function for user to initialize :class:`Runner`.
+        """Initialize an experiment's :class:`Runner`.
 
-        This is the user's primary means of initializing the :class:`Runner`. The function is 
+        This is the user's primary means of initializing the :class:`Runner`. The function is
         distinct from the :class:`Runner`'s :func:__init__, which is used in constructing the runner
-        in :class:`Base`'s :func:`from_params`s.  
+        in :class:`Base`'s :func:`from_params`s.
 
         A simple use case for loading a previous experiment::
 
@@ -97,9 +99,8 @@ class Runner(Base):
 
             runner = ptutils.runner.Runner.init(**params)
             runner.train()
+
         """
-
-
         runner = Base.from_params(**params)
         if runner.load_params['restore']:
             loaded_run = runner.load_run()
@@ -149,28 +150,28 @@ class Runner(Base):
 # -- Runner Methods ------------------------------------------------------------
 
     def setup_eval(self):
-        """ Set up the model for evaluation.
-    
-        If anything needs to be changed about the experiment for inference 
+        """Set up the model for evaluation.
+
+        If anything needs to be changed about the experiment for inference
         (e.g. the model's Dropout or Batch Norm), that should be taken care of here.
         """
         self.model.eval()
 
     def setup_train(self):
-        """ Set up the model for training.
-    
-        If anything needs to be changed about the experiment for inference 
+        """Set up the model for training.
+
+        If anything needs to be changed about the experiment for inference
         (e.g. the model's Dropout or Batch Norm), that should be taken care of here.
         """
         self.model.train()
 
     def step(self, prev_output):
-        """ Define a single step of an experiment.
+        """Define a single step of an experiment.
 
         A common use case will be to have the step correspond to a
-        batch update (e.g. calling `self.model.step`). 
+        batch update (e.g. calling `self.model.step`).
 
-        *This function must increment the `global_step`.* 
+        *This function must increment the `global_step`.*
 
         """
         data = self.dataprovider.provide(prev_output, mode='train')
@@ -179,10 +180,10 @@ class Runner(Base):
 
         log.info('step: {}; loss: {}'.format(self.global_step,
                                              output['loss'].data[0]))
-        return output        
+        return output
 
     def train(self):
-        """ Define the primary training loop.
+        """Define the primary training loop.
 
         The default behavior is to step the trainer and
         save intermediate results.
@@ -196,35 +197,34 @@ class Runner(Base):
             if self.global_step % self.save_params['metric_freq'] == 0:
 
                 # Save desired results.
-                record = {'exp_id': self.exp_id,
-                          'step': self.global_step,
-                          'loss': model_output['loss'],
-                          'state': self.to_state(),
-                          'params': self.to_params(),
-                          }
+                record = {
+                    'exp_id': self.exp_id,
+                    'step': self.global_step,
+                    'loss': model_output['loss'],
+                    'params': self.to_params(),
+                    'state': {n: t.cpu() for n, t in self.to_state().items()},
+                }
                 log.info("Saving step {}".format(self.global_step))
                 self.dbinterface.save(record)
 
             if self.validation_params and self.global_step % self.save_params['val_freq'] == 0:
-                # validation
+                # Perform validation.
                 self.test()
 
     def predict(self, prev_output=None):
-        """ Perform a single inference pass.
-        
+        """Perform a single inference pass.
+
         Args:
             prev_output (Object, optional): Experiment ID for saving experiment to the database.
 
-        Formally, this will call model.forward(). 
+        Formally, this will call model.forward().
         """
         data = self.dataprovider.provide(prev_output, mode='test')[0]
         output = self.model.forward(data)
         return output
-        
 
     def test(self):
-        """ Perform inference for several batches of data and save the result.
-        """
+        """Perform inference for several batches of data and save the result."""
         self.setup_eval()
         model_output = None
         all_model_outputs = []
@@ -233,21 +233,21 @@ class Runner(Base):
             all_model_outputs.append(model_output)
 
         # Save desired results.
-        record = {'exp_id': self.exp_id,
-                  'test_output': all_model_outputs,
-                  'params': self.to_params(),
-                  }
+        record = {
+            'exp_id': self.exp_id,
+            'test_output': all_model_outputs,
+            'params': self.to_params(),
+        }
         self.dbinterface.save(record)
 
     def load_run(self):
-        """ Load previous experiment from database.
-        
+        """Load previous experiment from database.
+
         Uses the parameters in `self.load_params` to load a previous
         experiment. If multiple entries match the given query, the most
         recent entry in the database is returned.
 
         """
-
         load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
         all_results = load_dbinterface.load(self.load_params['query'])
 
@@ -261,20 +261,20 @@ class Runner(Base):
 
     @staticmethod
     def _replace_params(replacement, to_replace, parent_device=False):
-        """ Replace entries in :param:to_replace with :param:replacement key/val pairs
-        
+        """Replace entries in :param:to_replace with :param:replacement key/val pairs.
+
         This function recurses through the :param:to_replace dictionary and replaces
         the key/val pairs with any keys specified in :param:replacement. If any values
         are dictionaries, only the keys specified within that dictionary are replaced.
 
         Additionally, if any devices are specified in `replacement`, all children
-        of that dictionary will have their devices set to `None' such that 
+        of that dictionary will have their devices set to `None' such that
         `base.base_cuda` will override the child device with its parent.
-        
+
         Args:
             replacement (dict): Dictionary with key/val pairs to use for replacement
             to_replace (dict): Dictionary whose key/val pairs will be replaced
-            parent_device (boolean): Specifies whether the dictionary's parent 
+            parent_device (boolean): Specifies whether the dictionary's parent
             had their 'device' replaced
 
         """
