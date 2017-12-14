@@ -10,13 +10,13 @@ from __future__ import print_function
 
 import os
 import re
+import copy
 import logging
 import collections
-import copy 
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
-
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
@@ -95,7 +95,6 @@ class Base(object):
             'devices' (list[ints]): devices to which it belongs
             'use_cuda' (bool): whether base should be moved to its devices
 
-
         """
         params = collections.OrderedDict()
         params['func'] = self.__class__
@@ -118,14 +117,14 @@ class Base(object):
     @classmethod
     def from_params(cls, **params):
         if 'func' in params:
-            # params is itself a base
+            # params is itself a base.
             func = params['func']
             for key, value in params.items():
                 if isinstance(value, dict):
                     params[key] = func.from_params(**value)
             return func(**params)
         else:
-            # params isn't a base
+            # params isn't a base.
             return params
 
     @classmethod
@@ -164,18 +163,13 @@ class Base(object):
         return destination
 
     def to_state(self, destination=None, prefix=''):
-        """Return a dictionary containing a whole state of the module.
-
-        TODO: CAVEAT GOES HERE
-
-        """
+        """Return a dictionary containing a whole state of the module."""
         if destination is None:
             destination = collections.OrderedDict()
         for name, base in self._bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
-                    copied_base = copy.deepcopy(base)
-                    copied_base.cpu().state_dict(destination, prefix + name + '.')
+                    base.state_dict(destination, prefix + name + '.')
                 except AttributeError as state_error:
                     log.warning(state_error)
             else:
@@ -197,6 +191,7 @@ class Base(object):
 
         Returns:
             Base: self.
+
         Raises:
             TypeError: restore_params type unsupported.
 
@@ -321,7 +316,7 @@ class Base(object):
 
 def _addindent(string, numSpaces):
     s = string.split('\n')
-    # dont do anything for single-line stuff
+    # Don't do anything for single-line stuff.
     if len(s) == 1:
         return string
     first = s.pop(0)
