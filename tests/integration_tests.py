@@ -191,8 +191,6 @@ def test_training():
     time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
-    print("params['train_params']['num_steps']/params['save_params']['metric_freq']", runner.train_params['num_steps'] // params['save_params']['metric_freq'])
-    print("runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count()", runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count())
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (
         runner.train_params['num_steps'] // params['save_params']['metric_freq'])
     assert runner.dbinterface.collection.distinct('exp_id')[0] == params['exp_id']
@@ -274,10 +272,10 @@ class DiffNameMNIST(torch.nn.Module, ptutils.base.Base):
         self.new_fc = nn.Linear(7 * 7 * 32, 10)
 
     def forward(self, x):
-        out = self.layer1(x)
-        out = self.layer2(out)
+        out = self.new_layer1(x)
+        out = self.new_layer2(out)
         out = out.view(out.size(0), -1)
-        out = self.fc(out)
+        out = self.new_fc(out)
         return out
 
 
@@ -322,6 +320,8 @@ def test_remapping():
     exp_id = 'mnist_remapped_new_name'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
+    params['train_params']['num_steps'] = 200
+    
     params['load_params']['query'] = {'exp_id': 'mnist_training'}
 
     params['model']['net']['func'] = DiffNameMNIST
@@ -329,7 +329,8 @@ def test_remapping():
     
     params['load_params']['restore_mapping']['model.net.fc.weight'] = 'model.net.new_fc.weight'
     params['load_params']['restore_mapping']['model.net.fc.bias'] = 'model.net.new_fc.bias'
-    
+        
+
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 

@@ -200,9 +200,9 @@ class Runner(Base):
                           'state': self.to_state(),
                           'params': self.to_params(),
                           }
-                self.dbinterface.save(record)
+                # self.dbinterface.save(record)
                 log.info("Saving step {}".format(self.global_step))
-                thread = threading.Thread(target=self.dbinterface.save, args=(,))
+                thread = threading.Thread(target=self.dbinterface.save, args=(record,))
                 thread.daemon = True
                 thread.start()
 
