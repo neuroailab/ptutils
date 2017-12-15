@@ -23,6 +23,7 @@ from __future__ import division, print_function, absolute_import
 import sys
 import time
 import pymongo as pm
+import re
 
 import torch
 import torch.nn as nn
@@ -172,7 +173,7 @@ def test_training():
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 
-    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
+    time.sleep(10)  # Wait for the morst recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])
@@ -255,6 +256,30 @@ def test_validation():
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
 
+class DiffNameMNIST(torch.nn.Module, ptutils.base.Base):
+    def __init__(self, **kwargs):
+        super(DiffNameMNIST, self).__init__()
+        ptutils.base.Base.__init__(self, **kwargs)
+
+        self.new_layer1 = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.new_layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(2))
+        self.new_fc = nn.Linear(7 * 7 * 32, 10)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.view(out.size(0), -1)
+        out = self.fc(out)
+        return out
+
 
 class ThreeLayerMNIST(torch.nn.Module, ptutils.base.Base):
     def __init__(self, **kwargs):
@@ -286,21 +311,36 @@ class ThreeLayerMNIST(torch.nn.Module, ptutils.base.Base):
         out = self.fc(out)
         return out
 
+
 def test_remapping():
 
     ''' Illustrate remapping of layers. 
     This test assumes that test_training function has run first.
     '''
     
-    exp_id = 'mnist_remapped'
+
+    exp_id = 'mnist_remapped_new_name'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
     params['load_params']['query'] = {'exp_id': 'mnist_training'}
 
+    params['model']['net']['func'] = DiffNameMNIST
+    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys()}
     
+    params['load_params']['restore_mapping']['model.net.fc.weight'] = 'model.net.new_fc.weight'
+    params['load_params']['restore_mapping']['model.net.fc.bias'] = 'model.net.new_fc.bias'
+    
+    runner = ptutils.runner.Runner.init(**params)
+    runner.train()
+
+    exp_id = 'mnist_remapped_new_arch'
+    params = setup_params(exp_id)
+    params['load_params']['restore'] = True
+    params['load_params']['query'] = {'exp_id': 'mnist_training'}
+
     params['model']['net']['func'] = ThreeLayerMNIST
     params['model']['net']['name'] = 'threelayermnist'
-    params['load_params']['restore_mapping'] = {key: re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
+    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
     params['load_params']['restore_params'] = re.compile(r'fc')
 
     runner = ptutils.runner.Runner.init(**params)
@@ -309,7 +349,6 @@ def test_remapping():
 
 if __name__ == '__main__':
     test_training()
-    test_validation()
-
+    # test_validation()
     test_remapping()
 

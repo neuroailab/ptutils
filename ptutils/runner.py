@@ -1,6 +1,7 @@
 """ptutils Runner."""
 
 import logging
+import threading
 
 from ptutils.base import Base
 from .error import StepError, ExpIDError, LoadError
@@ -199,8 +200,11 @@ class Runner(Base):
                           'state': self.to_state(),
                           'params': self.to_params(),
                           }
-                log.info("Saving step {}".format(self.global_step))
                 self.dbinterface.save(record)
+                log.info("Saving step {}".format(self.global_step))
+                thread = threading.Thread(target=self.dbinterface.save, args=(,))
+                thread.daemon = True
+                thread.start()
 
             if self.validation_params and self.global_step % self.save_params['val_freq'] == 0:
                 # validation
