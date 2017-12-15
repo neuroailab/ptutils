@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import copy
 
 from ptutils.base import Base
 from .error import StepError, ExpIDError, LoadError
@@ -110,7 +111,8 @@ class Runner(Base):
             if loaded_params:
                 loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
                 runner = Runner.from_params(**loaded_params)
-                runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
+            
+            runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
 
         if runner.exp_id is None:
             error_msg = 'Cannot run an experiment without an exp_id'
@@ -248,9 +250,15 @@ class Runner(Base):
         recent entry in the database is returned.
 
         """
-
         load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
-        all_results = load_dbinterface.load(self.load_params['query'])
+
+        # filter for results that have the state saved
+        # so that the state can be restored
+        if 'state' not in self.load_params['query'].keys(): # make sure to not override 'state' query
+            query = copy.copy(self.load_params['query'])
+            query['state'] = {'$exists': True}
+
+        all_results = load_dbinterface.load(query)
 
         try:
             # Load most recent run.

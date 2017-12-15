@@ -188,7 +188,7 @@ def test_training():
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
 
-    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
+    time.sleep(10)  # Wait for the most recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (
@@ -350,6 +350,6 @@ def test_remapping():
 
 if __name__ == '__main__':
     test_training()
-    # test_validation()
+    test_validation()
     test_remapping()
 
