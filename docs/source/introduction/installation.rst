@@ -1,7 +1,7 @@
 Installation
 ============
 
-Let's get started using TFUtils to train deep learning models!
+Let's get started using PTUtils to train deep learning models!
 
 Requirements
 ~~~~~~~~~~~~
@@ -19,22 +19,22 @@ Requirements
 Installation
 ~~~~~~~~~~~~
 
-We recommend installing tfutils within a `virtual
+We recommend installing PTUtils within a `virtual
 environment <http://docs.python-guide.org/en/latest/dev/virtualenvs/>`__
-to ensure a self-contained environment. To install tfutils within an
+to ensure a self-contained environment. To install PTUtils within an
 already existing virtual environment, see the System-wide Install section.
 
 .. code-block:: bash
 
-    git clone https://github.com/neuroailab/tfutils.git
-    cd tfutils;
+    git clone https://github.com/neuroailab/ptutils.git
+    cd ptutils;
     python setup.py install
 
 Or, if you would prefer to install using pip:
 
 .. code-block:: bash
 
-    pip install git+https://github.com/neuroailab/tfutils.git
+    pip install git+https://github.com/neuroailab/ptutils.git
 
 To activate the virtual environment, type
 
@@ -48,6 +48,6 @@ You will see the prompt change to reflect the activated environment. When you ar
 
     deactivate
 
-Congratulations, you have installed tfutils! Next, we recommend you learn
-how to run models using tfutils and walk through the MNIST multilayer
+Congratulations, you have installed PTUtils! Next, we recommend you learn
+how to run models using PTUtils and walk through the MNIST multilayer
 perceptron tutorial.
