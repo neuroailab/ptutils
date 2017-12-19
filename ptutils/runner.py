@@ -194,7 +194,7 @@ class Runner(Base):
                 record = {'exp_id': self.exp_id,
                           'step': self.global_step,
                           'loss': model_output['loss'],
-                          'state': {n: t.cpu() for n, t in self.to_state().items()},
+                          'state': self.to_state(),
                           'params': self.to_params(),
                           }
                 self.dbinterface.save(record)
