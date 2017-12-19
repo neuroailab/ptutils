@@ -22,20 +22,6 @@ logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel('DEBUG')
 
-if 'PTUTILS_HOME' in os.environ:
-    PTUTILS_HOME = os.environ['PTUTILS_HOME']
-else:
-    PTUTILS_HOME = os.path.join(os.environ['HOME'], '.ptutils')
-
-DEFAULT_LOAD_PARAMS = {'restore': False,
-                       'restore_params': None,
-                       'restore_mapping': None}
-
-DEFAULT_LOSS_PARAMS = {'func': nn.CrossEntropyLoss}
-DEFAULT_OPTIMIZER_PARAMS = {'func': optim.SGD,
-                            'momentum': 0.9,
-                            'lr': 0.05}
-
 
 class Base(object):
 

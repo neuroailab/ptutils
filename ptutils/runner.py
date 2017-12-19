@@ -1,7 +1,6 @@
 """ptutils Runner."""
 
 import logging
-import threading
 import copy
 
 from ptutils.base import Base
@@ -100,18 +99,14 @@ class Runner(Base):
             runner = ptutils.runner.Runner.init(**params)
             runner.train()
         """
-
-
         runner = Base.from_params(**params)
         if runner.load_params['restore']:
             loaded_run = runner.load_run()
             loaded_params = loaded_run['params']
             loaded_state = loaded_run['state']
-            
             if loaded_params:
                 loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
                 runner = Runner.from_params(**loaded_params)
-            
             runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
 
         if runner.exp_id is None:
@@ -199,14 +194,11 @@ class Runner(Base):
                 record = {'exp_id': self.exp_id,
                           'step': self.global_step,
                           'loss': model_output['loss'],
-                          'state': self.to_state(),
+                          'state': {n: t.cpu() for n, t in self.to_state().items()},
                           'params': self.to_params(),
                           }
-                # self.dbinterface.save(record)
+                self.dbinterface.save(record)
                 log.info("Saving step {}".format(self.global_step))
-                thread = threading.Thread(target=self.dbinterface.save, args=(record,))
-                thread.daemon = True
-                thread.start()
 
             if self.validation_params and self.global_step % self.save_params['val_freq'] == 0:
                 # validation
