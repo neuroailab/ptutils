@@ -246,12 +246,16 @@ class Base(object):
             else:
                 base.base_cuda(devices=self.devices)
 
-    def cpu(self):
+    def base_cpu(self):
         """Move all Bases to the CPU."""
         self.use_cuda = False
         self.devices = None
         for base in self._bases.values():
-            base.cpu()
+            base.use_cuda = False
+            if isinstance(base, torch.nn.Module):
+                base.cpu()
+            else:
+                base.base_cpu()
 
     def cast(self, obj):
 
