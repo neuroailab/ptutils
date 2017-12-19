@@ -229,6 +229,10 @@ class MongoInterface(DBInterface):
         object_ids = []
         for doc in document:
             doc = self._extract_data_from_variables(doc)
+            if 'state' in doc.keys():
+                state_on_cpu = self._move_to_cpu(doc['state'])
+                doc['state'] = state_on_cpu
+            
             doc_copy = copy.deepcopy(doc)
 
             # Make a list of any existing referenced gridfs files.
@@ -239,9 +243,6 @@ class MongoInterface(DBInterface):
 
             self._new_tensor_ids = []
 
-            if 'state' in doc_copy.keys():
-                state_on_cpu = self._move_to_cpu(doc_copy['state'])
-                doc_copy['state'] = state_on_cpu
             # Replace tensors with either a new gridfs file or a reference to
             # the old gridfs file.
             doc_copy = self._save_tensors(doc_copy)
