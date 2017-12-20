@@ -271,7 +271,7 @@ class Base(object):
         elif isinstance(value, list):
             # Check to see if it's a list of bases
             # If so, make it covertly into a BaseList and then save it to _bases
-            if isinstance(value[0], Base):
+            if len(value) > 0 and isinstance(value[0], Base):
                 baselist = BaseList(value)
                 self._bases[name] = baselist
         else:
