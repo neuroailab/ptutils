@@ -13,7 +13,7 @@ import re
 import copy
 import logging
 import collections
-
+from collections import Iterable
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -268,6 +268,12 @@ class Base(object):
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):
             self._bases[name] = value
+        elif isinstance(value, list):
+            # Check to see if it's a list of bases
+            # If so, make it covertly into a BaseList and then save it to _bases
+            if isinstance(value[0], Base):
+                baselist = BaseList(value)
+                self._bases[name] = baselist
         else:
             # Allow this , just restrict for _params.
             if name not in ['_params', '_bases']:
@@ -302,6 +308,86 @@ class Base(object):
             repstr += '  {}\n'.format(basestr)
         repstr = repstr + ')'
         return repstr
+
+    
+class BaseList(Base):
+    """Holds subBases in a list. Modeled after the torch.nn.ModuleList
+
+    BaseList can be indexed like a regular Python list, but basess it
+    contains are properly registered, and will be visible by all Base methods.
+
+    Arguments:
+        bases (iterable, optional): an iterable of bases to add
+    """
+
+    def __init__(self, bases=None):
+        super(BaseList, self).__init__()
+        if bases is not None:
+            self += bases
+
+    def __getitem__(self, idx):
+        if not (-len(self) <= idx < len(self)):
+            raise IndexError('index {} is out of range'.format(idx))
+        if idx < 0:
+            idx += len(self)
+        return self._bases[str(idx)]
+
+    def __setitem__(self, idx, base):
+        return setattr(self, str(idx), base)
+
+    def __len__(self):
+        return len(self._bases)
+
+    def __iter__(self):
+        return iter(self._bases.values())
+
+    def __iadd__(self, bases):
+        return self.extend(bases)
+
+    def __dir__(self):
+        keys = super(BaseList, self).__dir__()
+        keys = [key for key in keys if not key.isdigit()]
+        return keys
+
+    def append(self, base):
+        r"""Appends a given module to the end of the list.
+
+        Arguments:
+            module (nn.Module): module to append
+        """
+        self.add_module(str(len(self)), base)
+        return self
+
+    def add_base(self, name, base):
+        """Adds a child module to the current module.
+
+        The module can be accessed as an attribute using the given name.
+
+        Args:
+            name (string): name of the child module. The child module can be
+                accessed from this module using the given name
+            parameter (Module): child module to be added to the module.
+        """
+        if not isinstance(base, Base) and base is not None:
+            raise TypeError("{} is not a Module subclass".format(
+                torch.typename(base)))
+        if hasattr(self, name) and name not in self._bases:
+            raise KeyError("attribute '{}' already exists".format(name))
+        self._bases[name] = base 
+
+    def extend(self, bases):
+        r"""Appends modules from a Python iterable to the end of the list.
+
+        Arguments:
+            modules (iterable): iterable of modules to append
+        """
+        if not isinstance(bases, Iterable):
+            raise TypeError("ModuleList.extend should be called with an "
+                            "iterable, but got " + type(bases).__name__)
+        offset = len(self)
+        for i, bases in enumerate(bases):
+            self.add_base(str(offset + i), bases)
+        return self
 
 
 def _addindent(string, numSpaces):
