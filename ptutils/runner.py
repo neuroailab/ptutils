@@ -115,7 +115,8 @@ class Runner(Base):
             raise ExpIDError(error_msg)
 
         # put tensors on GPU
-        runner.base_cuda()
+        if runner.use_cuda:
+            runner.base_cuda()
         return runner
 
     @property
