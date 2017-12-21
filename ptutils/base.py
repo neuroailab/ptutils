@@ -268,12 +268,12 @@ class Base(object):
     def __setattr__(self, name, value):
         if isinstance(value, (Base, torch.nn.Module)):
             self._bases[name] = value
-        elif isinstance(value, list):
+        elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], Base):
             # Check to see if it's a list of bases
             # If so, make it covertly into a BaseList and then save it to _bases
-            if len(value) > 0 and isinstance(value[0], Base):
-                baselist = BaseList(value)
-                self._bases[name] = baselist
+
+            value = BaseList(value)
+            self._bases[name] = value
         else:
             # Allow this , just restrict for _params.
             if name not in ['_params', '_bases']:
@@ -320,8 +320,8 @@ class BaseList(Base):
         bases (iterable, optional): an iterable of bases to add
     """
 
-    def __init__(self, bases=None):
-        super(BaseList, self).__init__()
+    def __init__(self, bases=None, *args, **kwargs):
+        super(BaseList, self).__init__(*args, **kwargs)
         if bases is not None:
             self += bases
 
@@ -330,10 +330,10 @@ class BaseList(Base):
             raise IndexError('index {} is out of range'.format(idx))
         if idx < 0:
             idx += len(self)
-        return self._bases[str(idx)]
+        return self._bases['base'+str(idx)]
 
     def __setitem__(self, idx, base):
-        return setattr(self, str(idx), base)
+        return setattr(self, 'base'+str(idx), base)
 
     def __len__(self):
         return len(self._bases)
@@ -355,7 +355,7 @@ class BaseList(Base):
         Arguments:
             module (nn.Module): module to append
         """
-        self.add_module(str(len(self)), base)
+        self.add_base('base'+str(len(self)), base)
         return self
 
     def add_base(self, name, base):
@@ -386,7 +386,7 @@ class BaseList(Base):
                             "iterable, but got " + type(bases).__name__)
         offset = len(self)
         for i, bases in enumerate(bases):
-            self.add_base(str(offset + i), bases)
+            self.add_base('base'+str(offset + i), bases)
         return self
 
 
