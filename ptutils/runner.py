@@ -114,9 +114,15 @@ class Runner(Base):
             log.critical(error_msg)
             raise ExpIDError(error_msg)
 
+
+            if (not runner.exp_id == runner.load_params['load_query']['exp_id']) and len(runner.dbinterface.load({'exp_id': runner.exp_id})) > 0:
+                # if not resuming training, exp_id must be unique
+                error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
+                log.critical(error_msg)
+                raise ExpIDError(error_msg)
+
         # put tensors on GPU
-        if runner.use_cuda:
-            runner.base_cuda()
+        runner.base_cuda()
         return runner
 
     @property
@@ -298,3 +304,11 @@ class Runner(Base):
                 if parent_device and ('devices' in to_replace.keys()):
                     to_replace['devices'] = None
         return to_replace
+
+        
+        
+
+        
+        
+        
+        
