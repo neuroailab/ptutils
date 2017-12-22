@@ -365,6 +365,8 @@ class MongoInterface(DBInterface):
             popped_value = document.pop(key)
             if isinstance(value, dict):
                 document[new_key] = self._mongoify(popped_value)
+            elif isinstance(value, list):
+                document[new_key] = [self._mongoify(_)  if isinstance(_, (dict, type)) else _ for _ in popped_value]
             else:
                 if isinstance(value, type): #mongo cannot natively serialize these; use jsonpickle
                     document[new_key] = jsonpickle.encode(popped_value)
