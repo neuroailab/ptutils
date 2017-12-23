@@ -288,7 +288,7 @@ class MongoInterface(DBInterface):
         Returns:
             BSON Binary object a pickled tensor.
         """
-        return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
+        return Binary(pickle.dumps(tensor.cpu(), protocol=2), subtype=128)
         # return Binary(jsonpickle.encode(tensor))
         # return jsonpickle.encode(tensor)
 
