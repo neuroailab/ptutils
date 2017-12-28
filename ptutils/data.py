@@ -117,10 +117,10 @@ class MNISTProvider(DataProvider):
         self.batch_size = batch_size
         self.n_threads = n_threads
         for mode in self.modes:
-            self[mode] = MNIST(root='../tests/resources/data/',
+            setattr(self, mode, MNIST(root='../tests/resources/data/',
                                train=(mode == 'train'),
                                transform=transforms.ToTensor(),
-                               download=True)
+                               download=True))
 
         self.train_dataloader = iter(DataLoader(dataset=self.train,
                                                 batch_size=batch_size,
@@ -129,10 +129,11 @@ class MNISTProvider(DataProvider):
         self.test_dataloader = iter(DataLoader(dataset=self.test,
                                                batch_size=batch_size,
                                                shuffle=False))
+        self._exclude_from_params = ['train_dataloader', 'test_dataloader', 'train', 'test']
 
-    def to_params(self):
-        return {name: param for name, param in self._params.items()
-                if name not in ['train_dataloader', 'test_dataloader']}
+    # def to_params(self):
+    #     return {name: param for name, param in self._params.items()
+    #             if name not in ['train_dataloader', 'test_dataloader']}
 
     def provide(self, model_output, mode='train'):
         if mode == 'train':
@@ -147,11 +148,12 @@ class MNIST(dsets.MNIST, Dataset):
         Dataset.__init__(self)
         super(MNIST, self).__init__(root, train, transform,
                                     target_transform, download)
+#        self._exclude_from_params = ['train_data', 'train_labels', 'test_data', 'test_labels']
 
-    def to_params(self):
-        return {name: param for name, param in self._params.items()
-                if name not in ['train_data', 'train_labels',
-                                'test_data', 'test_labels']}
+    # def to_params(self):
+    #     return {name: param for name, param in self._params.items()
+    #             if name not in ['train_data', 'train_labels',
+    #                             'test_data', 'test_labels']}
 
 
 class CIFARProvider(DataProvider):

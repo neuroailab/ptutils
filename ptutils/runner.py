@@ -31,10 +31,10 @@ class Runner(Base):
     def __init__(self,
                  exp_id,
                  model=None,
-                 global_step=None,
                  dbinterface=None,
                  dataprovider=None,
                  train_params=None,
+                 global_step=None,
                  save_params=None,
                  load_params=None,
                  **kwargs):
@@ -43,7 +43,6 @@ class Runner(Base):
         Args:
             exp_id (str): Experiment ID for saving experiment to the database.
             model (:class:`Model`): Model (e.g. AlexNet, VGG16).
-            global_step (int): The number of batches seen by the model during training.
             dbinterface (:class:`DBInterface`): Object to communicate with the database.
             dataprovider (:class:`DataProvider`): Provides training and validation data for the model.
             train_params (dict): Dictionary of parameters for training.
@@ -64,8 +63,9 @@ class Runner(Base):
         self.train_params = train_params
 
         self.exp_id = exp_id
-        self.global_step = global_step
-
+        # global_step (int): The number of batches seen by the model during training.
+        self.global_step = global_step 
+ 
 # -- Runner Properties ---------------------------------------------------------
 
     @classmethod
@@ -114,36 +114,28 @@ class Runner(Base):
             log.critical(error_msg)
             raise ExpIDError(error_msg)
 
-        # put tensors on GPU
-        if runner.use_cuda:
-            runner.base_cuda()
+        params = runner.to_params()
+        runner.assign_devices()
+        if runner.global_step is None:
+            runner.global_step = 0
         return runner
 
-    @property
-    def exp_id(self):
-        return self._params['exp_id']
-
-    @exp_id.setter
-    def exp_id(self, value):
-        self._params['exp_id'] = value
-
-    @property
-    def global_step(self):
-        if self._params['global_step'] is None:
-            self._params['global_step'] = 0
-        return self._params['global_step']
-
-    @global_step.setter
-    def global_step(self, value):
-        if value is None:
-            self._params['global_step'] = value
-        elif value > (self._params['global_step'] + 1):
-            raise StepError('The global step can only be incremented by one.')
-        elif value < 0:
-            raise StepError('The global step cannot be negative.')
-        else:
-            self._params['global_step'] = value
-
+#    @property
+#    def global_step(self):
+#        """Get the optimizer."""
+#        return self._global_step
+#
+#    @global_step.setter
+#    def global_step(self, value):
+#        if value is None:
+#            self._global_step = 0
+#        if value > (self._global_step + 1):
+#            raise StepError('The global step can only be incremented by one.')
+#        elif value < 0:
+#            raise StepError('The global step cannot be negative.')
+#        else:
+#            self._global_step = value
+#
 # -- Runner Methods ------------------------------------------------------------
 
     def setup_eval(self):
@@ -293,7 +285,7 @@ class Runner(Base):
                 else:
                     to_replace[key] = Runner._replace_params(value, to_replace[key], parent_device or False)
             else:
-                if value is not type(None):
+                if value is not None:
                     to_replace[key] = value
                 if parent_device and ('devices' in to_replace.keys()):
                     to_replace['devices'] = None

@@ -33,7 +33,7 @@ import ptutils
 
 LOG_LEVEL = 'WARNING'
 MONGO_PORT = 27017
-CUDA = 0
+CUDA = 2
 
 
 class MNIST(torch.nn.Module, ptutils.base.Base):
@@ -173,7 +173,7 @@ def test_training():
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 
-    time.sleep(10)  # Wait for the morst recent record to finsh being saved to db.
+    #time.sleep(10)  # Wait for the morst recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])

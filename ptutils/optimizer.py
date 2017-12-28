@@ -17,32 +17,31 @@ class Optimizer(Base):
             NotImplementedError: Description.
 
         """
-        # super(Optimizer, self).__init__(algorithm=algorithm,
-        Base.__init__(self,
-                      algorithm=algorithm,
-                      params=params,
-                      defaults=defaults,
-                      **kwargs)
-        if isinstance(algorithm, (str, unicode)):
-            optimizer_class = getattr(torch.optim, algorithm, None)
+        super(Optimizer, self).__init__(**kwargs)
+        self.params = params
+        self.defaults = defaults
+        self.algorithm = algorithm
+        if isinstance(self.algorithm, (str, unicode)):
+            optimizer_class = getattr(torch.optim, self.algorithm, None)
             if optimizer_class is None:
                 # Look for algorithm in extensions
-                optimizer_class = getattr(optimizers, algorithm, None)
+                optimizer_class = getattr(optimizers, self.algorithm, None)
             assert optimizer_class is not None, "Optimizer {} not found.".format(
-                algorithm)
-        elif callable(algorithm):
-            optimizer_class = algorithm
+                self.algorithm)
+        elif callable(self.algorithm):
+            optimizer_class = self.algorithm
         else:
             raise NotImplementedError
 
         self.optimizer_class = optimizer_class
-        # if self.params is not None:
-            # optimizer_class.__init__(self, self.params, self.defaults)
+        self._exclude_from_params = ['optimizer']
+        if getattr(self, 'params', None) is not None:
+            optimizer_class.__init__(self, self.params, self.defaults)
 
-    def to_params(self):
-        params = super(Optimizer, self).to_params()
-        return {name: param for name, param in params.items()
-                if name not in ['optimizer']}
+    # def to_params(self):
+    #     params = super(Optimizer, self).to_params()
+    #     return {name: param for name, param in params.items()
+    #             if name not in ['optimizer']}
 
     def step(self, closure=None):
         return self.optimizer.step(closure=closure)

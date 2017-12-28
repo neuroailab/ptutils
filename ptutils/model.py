@@ -26,39 +26,31 @@ class Model(Base):
         self.net = net
         self.criterion = criterion
         self.optimizer = optimizer
-        self._loss = None
-
-    @property
-    def net(self):
-        """Get the net."""
-        return self._bases['net']
-
-    @net.setter
-    def net(self, value):
-        self._bases['net'] = value
-
-    @property
-    def criterion(self):
-        """Get the criterion."""
-        return self._bases['criterion']
-
-    @criterion.setter
-    def criterion(self, value):
-        self._bases['criterion'] = value
-
-    @property
-    def optimizer(self):
-        """Get the optimizer."""
-        return self._bases['optimizer']
-
-    @optimizer.setter
-    def optimizer(self, value):
-        self._bases['optimizer'] = value
-        if self.optimizer.params is None:
+        if self.optimizer.params == None:
             params = self.net.parameters()
-
-        self.optimizer.optimizer = self.optimizer.optimizer_class(params,
+        if hasattr(self.optimizer, 'defaults'):
+            self.optimizer.optimizer = self.optimizer.optimizer_class(params,
                                                    **self.optimizer.defaults)
+        else: 
+            self.optimizer.optimizer = self.optimizer.optimizer_class(params)
+        self._loss = None
+        self.net.cuda(self.devices)
+
+#    @property
+#    def optimizer(self):
+#        return self._optimizer
+#    
+#    @optimizer.setter
+#    def optimizer(self, value):
+#        self._optimizer = value
+#        if self._optimizer.params == None:
+#            params = self.net.parameters()
+#        if hasattr(self._optimizer, 'defaults'):
+#            self._optimizer.optimizer = self._optimizer.optimizer_class(params,
+#                                                   **self._optimizer.defaults)
+#        else:
+#            self._optimizer.optimizer = self._optimizer.optimizer_class(params)
+#
 
     def forward(self, input):
         input_var = Variable(input)
@@ -124,6 +116,8 @@ class MNIST(nn.Module, Base):
             nn.ReLU(),
             nn.MaxPool2d(2))
         self.fc = nn.Linear(7 * 7 * 32, 10)
+
+        self.cuda(self.devices)
 
     def forward(self, x):
         out = self.layer1(x)

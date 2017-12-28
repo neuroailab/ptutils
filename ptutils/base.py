@@ -26,13 +26,17 @@ log.setLevel('DEBUG')
 class Base(object):
 
     def __init__(self, *args, **kwargs):
-        self._bases = collections.OrderedDict()
-        self._params = collections.OrderedDict()
 
         self.devices = None
-        self.use_cuda = False
-
         self.name = kwargs.get('name', type(self).__name__.lower())
+        if not hasattr(self, '_exclude_from_params'):
+            self._exclude_from_params = []
+        
+        # this prevents the backend for torch.nn.Modules
+        # from being serialized in the database
+        self._exclude_from_params.append('_backend')
+        self._exclude_from_params.append('_modules')
+
 
         for i, arg in enumerate(args):
 
@@ -47,30 +51,6 @@ class Base(object):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
-    @property
-    def name(self):
-        return self._params['name']
-
-    @name.setter
-    def name(self, value):
-        self._params['name'] = value
-
-    @property
-    def devices(self):
-        return self._params['devices']
-
-    @devices.setter
-    def devices(self, value):
-        self._params['devices'] = value
-
-    @property
-    def use_cuda(self):
-        return self._params['use_cuda']
-
-    @use_cuda.setter
-    def use_cuda(self, value):
-        self._params['use_cuda'] = value
-
     def to_params(self):
         """Generate dictionary representation of base.
 
@@ -82,13 +62,8 @@ class Base(object):
             'use_cuda' (bool): whether base should be moved to its devices
 
         """
-        params = collections.OrderedDict()
-        params['func'] = self.__class__
-        state_dict = collections.OrderedDict()
-        for name, param in self._params.items():
-            if param is not None:
-                params[name] = param
-        for name, base in self._bases.items():
+        bases, params = self._get_bases_and_params() 
+        for name, base in bases.items():
             try:
                 params[name] = base.to_params()
             except AttributeError as params_error:
@@ -97,7 +72,7 @@ class Base(object):
                     state_dict[name] = base.state_dict().keys()
                 except AttributeError as state_error:
                     log.warning(str(params_error) + str(state_error))
-
+        params = {name:param for name, param in params.items() if param is not None and name not in self._exclude_from_params}
         return params
 
     @classmethod
@@ -113,46 +88,12 @@ class Base(object):
             # params isn't a base.
             return params
 
-    @classmethod
-    def _from_params(cls, **params):
-        try:
-            func = params['func']
-        except KeyError:
-            pass
-            # raise ParamError('Param key \'func\' not provided.')
-        else:
-            for key, value in params.items():
-                if isinstance(value, dict):
-                    params[key] = func.from_params(**value)
-            return func(**params)
-
-    def _to_state(self, destination=None, prefix=''):
-        """Return a dictionary containing a whole state of the module.
-
-        TODO: CAVEAT GOES HERE
-
-        """
-        if destination is None:
-            destination = collections.OrderedDict()
-        for name, base in self._bases.items():
-            if isinstance(base, (torch.nn.Module, torch.optim.Optimizer)):
-                try:
-                    base.state_dict(destination, prefix + name + '.')
-                except TypeError as state_error:
-                    log.warning(state_error)
-                    try:
-                        destination[name] = base.state_dict()
-                    except TypeError:
-                        pass
-            else:
-                base.to_state(destination, prefix + name + '.')
-        return destination
-
     def to_state(self, destination=None, prefix=''):
         """Return a dictionary containing a whole state of the module."""
+        bases, _  = self._get_bases_and_params() 
         if destination is None:
             destination = collections.OrderedDict()
-        for name, base in self._bases.items():
+        for name, base in bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
                     base.state_dict(destination, prefix + name + '.')
@@ -210,41 +151,18 @@ class Base(object):
 
         return self
 
-    def apply(self, fn):
-        """Apply``fn`` recursively to every subbase as well as self.
-
-        Typical use applying dataparallel to all modules.
-
-        Args:
-            fn (function or static method): Function to apply to all subbases.
-
-        Returns:
-            Base: self
-
-        """
-        for base in self._bases.values():
-            base.apply(fn)
-        fn(self)
-        return self
-
-    def base_cuda(self, devices=None):
-        """Move all Bases to the GPU.
-
+    def assign_devices(self, devices=None):
+        """Recursively assign devices to children bases/modules.
         Args:
             devices(list, optional): if specified, all parameters will be
                 copied to that device
-
         """
-        self.use_cuda = True
         if self.devices is None:
             self.devices = devices
+        bases, _ = self._get_bases_and_params()
+        for base in bases.values():
+            base.assign_devices(devices=self.devices)
 
-        for base in self._bases.values():
-            base.use_cuda = True
-            if isinstance(base, torch.nn.Module):
-                base.cuda(self.devices)
-            else:
-                base.base_cuda(devices=self.devices)
 
     def base_cpu(self):
         """Move all Bases to the CPU."""
@@ -265,31 +183,18 @@ class Base(object):
             obj = obj.cuda() if self.use_cuda else obj #this cuda call may need to be changed
             return obj.type(self.dtype) if dtype is None else obj.type(dtype)
 
-    def __setattr__(self, name, value):
-        if isinstance(value, (Base, torch.nn.Module)):
-            self._bases[name] = value
-        elif isinstance(value, list) and len(value) > 0 and isinstance(value[0], Base):
-            # Check to see if it's a list of bases
-            # If so, make it covertly into a BaseList and then save it to _bases
-
-            value = BaseList(value)
-            self._bases[name] = value
-        else:
-            # Allow this , just restrict for _params.
-            if name not in ['_params', '_bases']:
-                self._params[name] = value
-        object.__setattr__(self, name, value)
-
-    def __getattr__(self, name):
-        if name in self._bases:
-            return self._bases[name]
-        elif name in self._params:
-            return self._params[name]
-        elif name in self.__dict__:
-            return self.__dict__[name]
-        else:
-            raise AttributeError("'{}' object has no attribute '{}'"
-                                 .format(type(self).__name__, name))
+    def _get_bases_and_params(self):
+        bases = {}
+        params = {}
+        for key, value in self.__dict__.items():
+            if isinstance(value, (Base, torch.nn.Module)):
+                bases[key] = value
+            elif isinstance(value, list) and len(value) > 0 and all(isinstance(x, Base) for x in value):
+                value = BaseList(value)
+                bases[key] = key    
+            else:
+                params[key] = value
+        return bases, params
 
     def __setitem__(self, name, item):
         self.__setattr__(name, item)
@@ -297,17 +202,17 @@ class Base(object):
     def __getitem__(self, name):
         return self.__getattr__(name)
 
-    def __repr__(self):
-        """Return module string representation."""
-        repstr = '{} ({}): ('.format(type(self).__name__, self.name)
-        if self._bases:
-            repstr += '\n'
-        for name, base in self._bases.items():
-            basestr = base.__repr__()
-            basestr = _addindent(basestr, 2)
-            repstr += '  {}\n'.format(basestr)
-        repstr = repstr + ')'
-        return repstr
+    # def __repr__(self):
+    #     """Return module string representation."""
+    #     repstr = '{} ({}): ('.format(type(self).__name__, self.name)
+    #     if self._bases:
+    #         repstr += '\n'
+    #     for name, base in self._bases.items():
+    #         basestr = base.__repr__()
+    #         basestr = _addindent(basestr, 2)
+    #         repstr += '  {}\n'.format(basestr)
+    #     repstr = repstr + ')'
+    #     return repstr
 
     
 class BaseList(Base):

@@ -71,15 +71,11 @@ class MongoInterface(DBInterface):
         self.database = self.client[self.database_name]
         self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
+        self._exclude_from_params = ['client', 'database', 'collection', 'filesystem']
 
     @classmethod
     def from_params(cls, database_name, collection_name, **params):
         return cls(database_name, collection_name, **params)
-
-    def to_params(self):
-        return {name: param for name, param in self._params.items()
-                if name in ['func', 'host', 'port', 'database_name',
-                            'collection_name']}
 
     def _close(self):
         self.client.close()
@@ -87,14 +83,14 @@ class MongoInterface(DBInterface):
     # def __del__(self):
         # self._close()
 
-    def __repr__(self):
-        """Return module string representation."""
-        repstr = '{} ({}): (\n'.format(type(self).__name__, self.name)
-        for name, param in self._params.items():
-            if name in ['host', 'port', 'database_name', 'collection_name']:
-                repstr += '  ({}): {} \n'.format(name, param)
-        repstr = repstr + ')'
-        return repstr    
+    # def __repr__(self):
+    #     """Return module string representation."""
+    #     repstr = '{} ({}): (\n'.format(type(self).__name__, self.name)
+    #     for name, param in self._params.items():
+    #         if name in ['host', 'port', 'database_name', 'collection_name']:
+    #             repstr += '  ({}): {} \n'.format(name, param)
+    #     repstr = repstr + ')'
+    #     return repstr 
 
     # Public methods: ---------------------------------------------------------
 
