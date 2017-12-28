@@ -284,7 +284,7 @@ class MongoInterface(DBInterface):
         Returns:
             BSON Binary object a pickled tensor.
         """
-        return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
+        return Binary(pickle.dumps(tensor.cpu(), protocol=2), subtype=128)
         # return Binary(jsonpickle.encode(tensor))
         # return jsonpickle.encode(tensor)
 
@@ -361,6 +361,8 @@ class MongoInterface(DBInterface):
             popped_value = document.pop(key)
             if isinstance(value, dict):
                 document[new_key] = self._mongoify(popped_value)
+            elif isinstance(value, list):
+                document[new_key] = [self._mongoify(_)  if isinstance(_, (dict, type)) else _ for _ in popped_value]
             else:
                 if isinstance(value, type): #mongo cannot natively serialize these; use jsonpickle
                     document[new_key] = jsonpickle.encode(popped_value)
