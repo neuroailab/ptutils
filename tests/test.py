@@ -27,8 +27,6 @@ import numpy as np
 from bson.objectid import ObjectId
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
 sys.path.insert(0, '../')
 from ptutils import base, data, error, model, runner, database
@@ -87,7 +85,6 @@ class TestBase(unittest.TestCase):
         nn.Modules as immediate children for it to be able to produce a
         `state_dict`-like dictionary.
 
-        Caveat:
         """
         # Base with torch.nn.Module child.
         base = self.test_class()
@@ -341,7 +338,7 @@ class TestBase(unittest.TestCase):
 
     # Test apply ---------------------------------------------------------------
 
-    @unittest.skip('Incomplete')
+    @unittest.skip('Not Implemented')
     def test_apply(self):
         """Test apply."""
         base = self.test_class()
@@ -350,7 +347,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.to_state().keys(),
                          ['linear.weight', 'linear.bias'])
 
-    @unittest.skip('Incomplete')
+    @unittest.skip('Not Implemented')
     def test_apply_with_base_child_with_module_child(self):
         """Base with Base child with torch.nn.Module child."""
         base = self.test_class()
@@ -361,7 +358,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.to_state().keys(),
                          ['child.linear.weight', 'child.linear.bias'])
 
-    @unittest.skip('Incomplete')
+    @unittest.skip('Not Implemented')
     def test_apply_with_base_and_module_child(self):
         """Base with Base child and torch.nn.Module child."""
         base = self.test_class()
@@ -373,7 +370,7 @@ class TestBase(unittest.TestCase):
             base.to_state().keys(),
             ['linear.weight', 'linear.bias'])
 
-    @unittest.skip('Incomplete')
+    @unittest.skip('Not Implemented')
     def test_apply_with_module_child_and_base_child_with_module_child(self):
         """Base child with torch.nn.Module child and torch.nn.Module child."""
         base = self.test_class()
@@ -390,11 +387,13 @@ class TestBase(unittest.TestCase):
 
     # Test cuda ----------------------------------------------------------------
 
+    @unittest.skip('Not Implemented')
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda(self):
         base = self.setup_base()
-        base.base_cuda()
+        base.assign_devices()
 
+    @unittest.skip('Not Implemented')
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_base_child_with_module_child(self):
         """Base with Base child with torch.nn.Module child."""
@@ -421,6 +420,7 @@ class TestBase(unittest.TestCase):
         self.assertEqual(base.devices, 0)
         self.assertEqual(base.child.devices, 0)
 
+    @unittest.skip('Not Implemented')
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_base_and_module_child(self):
         """Base with Base child and torch.nn.Module child."""
@@ -431,6 +431,7 @@ class TestBase(unittest.TestCase):
         base.linear = linear
         base.base_cuda()
 
+    @unittest.skip('Not Implemented')
     @unittest.skipIf(not torch.cuda.is_available(), 'Cuda is not available')
     def test_cuda_with_module_child_and_base_child_with_module_child(self):
         """Base child with torch.nn.Module child and torch.nn.Module child."""
@@ -445,10 +446,12 @@ class TestBase(unittest.TestCase):
 
     # Test cpu -----------------------------------------------------------------
 
+    @unittest.skip('Not Implemented')
     def test_cpu(self):
         base = self.setup_base()
-        base.cpu()
+        base.base_cpu()
 
+    @unittest.skip('Not Implemented')
     def test_cpu_with_base_child_with_module_child(self):
         """Base with Base child with torch.nn.Module child."""
         base = self.test_class()
@@ -456,8 +459,9 @@ class TestBase(unittest.TestCase):
         linear = torch.nn.Linear(2, 2)
         base.child = child
         base.child.linear = linear
-        base.cpu()
+        base.base_cpu()
 
+    @unittest.skip('Not Implemented')
     def test_cpu_with_base_and_module_child(self):
         """Base with Base child and torch.nn.Module child."""
         base = self.test_class()
@@ -465,8 +469,9 @@ class TestBase(unittest.TestCase):
         linear = torch.nn.Linear(2, 2)
         base.child = child
         base.linear = linear
-        base.cpu()
+        base.base_cpu()
 
+    @unittest.skip('Not Implemented')
     def test_cpu_with_module_child_and_base_child_with_module_child(self):
         """Base child with torch.nn.Module child and torch.nn.Module child."""
         base = self.test_class()
@@ -476,7 +481,7 @@ class TestBase(unittest.TestCase):
         base.child = child
         base.linear = linear
         base.child.child_linear = child_linear
-        base.cpu()
+        base.base_cpu()
 
     @classmethod
     def setup_base(cls, value=None):
@@ -606,7 +611,7 @@ class TestMongoInterface(Test):
 
     def test_save(self):
         doc = {'exp_id': 'test_save', 'step': 0}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save'})
         self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r.next())
@@ -614,7 +619,7 @@ class TestMongoInterface(Test):
     def test_save_numpy_array(self):
         array = np.array([1, 2, 3])
         doc = {'exp_id': 'test_save_numpy_array', 'array': array}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_numpy_array'})
         self.assertIsInstance(r.next()['array'], ObjectId)
@@ -622,7 +627,7 @@ class TestMongoInterface(Test):
     def test_save_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
         doc = {'exp_id': 'test_save_torch_tensor', 'tensor': tensor}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_torch_tensor'})
         self.assertIsInstance(r.next()['tensor'], ObjectId)
@@ -633,7 +638,7 @@ class TestMongoInterface(Test):
         b.linear = linear
         state = b.to_state()
         doc = {'exp_id': 'test_save_state', 'state': state}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_state'})
         for param in r.next()['state'].values():
@@ -641,21 +646,21 @@ class TestMongoInterface(Test):
 
     def test_load(self):
         doc = {'exp_id': 'test_load', 'step': 0}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.dbinterface.load({'exp_id': 'test_load'})
         self.assertDictContainsSubset({'exp_id': 'test_load', 'step': 0}, r[0])
 
     def test_load_numpy_array(self):
         array = np.array([1, 2, 3])
         doc = {'exp_id': 'test_load_numpy_array', 'array': array}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.dbinterface.load({'exp_id': 'test_load_numpy_array'})
         self.assertTrue(np.array_equal(doc['array'], r[0]['array']))
 
     def test_load_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
         doc = {'exp_id': 'test_load_torch_tensor', 'tensor': tensor}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.dbinterface.load({'exp_id': 'test_load_torch_tensor'})
         self.assertTrue(torch.equal(doc['tensor'], r[0]['tensor']))
 
@@ -665,7 +670,7 @@ class TestMongoInterface(Test):
         b.linear = linear
         state = b.to_state()
         doc = {'exp_id': 'test_load_state', 'state': state}
-        self.dbinterface.save(doc)
+        self.dbinterface.save(doc, multithread=False)
         r = self.dbinterface.load({'exp_id': 'test_load_state'})
         restored_state = r[0]['state']
         self.assertItemsEqual(state.keys(), restored_state.keys())
@@ -674,7 +679,7 @@ class TestMongoInterface(Test):
 
     def test_delete(self):
         doc = {'exp_id': 'test_delete', 'step': 0}
-        object_id = self.dbinterface.save(doc)
+        object_id = self.dbinterface.save(doc, multithread=False)
         self.dbinterface.delete(object_id[0])
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_delete'})

@@ -31,12 +31,11 @@ class Base(object):
         self.name = kwargs.get('name', type(self).__name__.lower())
         if not hasattr(self, '_exclude_from_params'):
             self._exclude_from_params = []
-        
+
         # this prevents the backend for torch.nn.Modules
         # from being serialized in the database
         self._exclude_from_params.append('_backend')
         self._exclude_from_params.append('_modules')
-
 
         for i, arg in enumerate(args):
 
@@ -62,17 +61,17 @@ class Base(object):
             'use_cuda' (bool): whether base should be moved to its devices
 
         """
-        bases, params = self._get_bases_and_params() 
+        bases, params = self._get_bases_and_params()
         for name, base in bases.items():
             try:
                 params[name] = base.to_params()
             except AttributeError as params_error:
                 try:
                     params[name] = collections.OrderedDict({'func': base.__class__})
-                    state_dict[name] = base.state_dict().keys()
                 except AttributeError as state_error:
                     log.warning(str(params_error) + str(state_error))
-        params = {name:param for name, param in params.items() if param is not None and name not in self._exclude_from_params}
+        params = {name: param for name, param in params.items()
+                  if param is not None and name not in self._exclude_from_params}
         return params
 
     @classmethod
@@ -90,7 +89,7 @@ class Base(object):
 
     def to_state(self, destination=None, prefix=''):
         """Return a dictionary containing a whole state of the module."""
-        bases, _  = self._get_bases_and_params() 
+        bases, _ = self._get_bases_and_params()
         if destination is None:
             destination = collections.OrderedDict()
         for name, base in bases.items():
@@ -153,6 +152,7 @@ class Base(object):
 
     def assign_devices(self, devices=None):
         """Recursively assign devices to children bases/modules.
+
         Args:
             devices(list, optional): if specified, all parameters will be
                 copied to that device
@@ -162,7 +162,6 @@ class Base(object):
         bases, _ = self._get_bases_and_params()
         for base in bases.values():
             base.assign_devices(devices=self.devices)
-
 
     def base_cpu(self):
         """Move all Bases to the CPU."""
@@ -180,7 +179,7 @@ class Base(object):
         if isinstance(obj, (list, tuple)):
             return type(obj)([self.cast(o) for o in obj])
         else:
-            obj = obj.cuda() if self.use_cuda else obj #this cuda call may need to be changed
+            obj = obj.cuda() if self.use_cuda else obj  # this cuda call may need to be changed
             return obj.type(self.dtype) if dtype is None else obj.type(dtype)
 
     def _get_bases_and_params(self):
@@ -191,7 +190,7 @@ class Base(object):
                 bases[key] = value
             elif isinstance(value, list) and len(value) > 0 and all(isinstance(x, Base) for x in value):
                 value = BaseList(value)
-                bases[key] = key    
+                bases[key] = key
             else:
                 params[key] = value
         return bases, params
@@ -214,9 +213,9 @@ class Base(object):
     #     repstr = repstr + ')'
     #     return repstr
 
-    
+
 class BaseList(Base):
-    """Holds subBases in a list. Modeled after the torch.nn.ModuleList
+    """Hold subBases in a list. Modeled after the torch.nn.ModuleList
 
     BaseList can be indexed like a regular Python list, but basess it
     contains are properly registered, and will be visible by all Base methods.
@@ -235,10 +234,10 @@ class BaseList(Base):
             raise IndexError('index {} is out of range'.format(idx))
         if idx < 0:
             idx += len(self)
-        return self._bases['base'+str(idx)]
+        return self._bases['base' + str(idx)]
 
     def __setitem__(self, idx, base):
-        return setattr(self, 'base'+str(idx), base)
+        return setattr(self, 'base' + str(idx), base)
 
     def __len__(self):
         return len(self._bases)
@@ -260,7 +259,7 @@ class BaseList(Base):
         Arguments:
             module (nn.Module): module to append
         """
-        self.add_base('base'+str(len(self)), base)
+        self.add_base('base' + str(len(self)), base)
         return self
 
     def add_base(self, name, base):
@@ -278,7 +277,7 @@ class BaseList(Base):
                 torch.typename(base)))
         if hasattr(self, name) and name not in self._bases:
             raise KeyError("attribute '{}' already exists".format(name))
-        self._bases[name] = base 
+        self._bases[name] = base
 
     def extend(self, bases):
         r"""Appends modules from a Python iterable to the end of the list.
@@ -291,7 +290,7 @@ class BaseList(Base):
                             "iterable, but got " + type(bases).__name__)
         offset = len(self)
         for i, bases in enumerate(bases):
-            self.add_base('base'+str(offset + i), bases)
+            self.add_base('base' + str(offset + i), bases)
         return self
 
 
