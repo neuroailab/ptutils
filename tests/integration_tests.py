@@ -138,8 +138,8 @@ def setup_params(exp_id=None):
             'query': {'exp_id': exp_id},
             'restore_params': None,
             'restore_mapping': None
-            }
-            }
+        }
+    }
     return params
 
 
@@ -173,8 +173,6 @@ def test_training():
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 
-    #time.sleep(10)  # Wait for the morst recent record to finsh being saved to db.
-
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (params['train_params']['num_steps'] // params['save_params']['metric_freq'])
 
@@ -187,8 +185,6 @@ def test_training():
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
-
-    time.sleep(10)  # Wait for the most recent record to finsh being saved to db.
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == (
@@ -205,7 +201,6 @@ def test_training():
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
 
-    time.sleep(1)  # Wait for the morst recent record to finsh being saved to db.
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
 
 
@@ -242,7 +237,6 @@ def test_validation():
                                                         ['collection_name']].find({'exp_id': params['exp_id']}).count() == 1
 
     # Test validation during training
-
     params['exp_id'] = 'mnist_training'
     params['train_params']['num_steps'] = 200
     params['load_params']['restore'] = True
@@ -253,6 +247,7 @@ def test_validation():
 
     runner = ptutils.runner.Runner.init(**revive_params)
     runner.train()
+
 
 class DiffNameMNIST(torch.nn.Module, ptutils.base.Base):
     def __init__(self, **kwargs):
@@ -311,25 +306,23 @@ class ThreeLayerMNIST(torch.nn.Module, ptutils.base.Base):
 
 
 def test_remapping():
+    """Illustrate remapping of layers.
 
-    ''' Illustrate remapping of layers. 
     This test assumes that test_training function has run first.
-    '''
-    
 
+    """
     exp_id = 'mnist_remapped_new_name'
     params = setup_params(exp_id)
     params['load_params']['restore'] = True
     params['train_params']['num_steps'] = 200
-    
+
     params['load_params']['query'] = {'exp_id': 'mnist_training'}
 
     params['model']['net']['func'] = DiffNameMNIST
-    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys()}
-    
+    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer', 'new_layer', key) for key in MNIST().state_dict().keys()}
+
     params['load_params']['restore_mapping']['model.net.fc.weight'] = 'model.net.new_fc.weight'
     params['load_params']['restore_mapping']['model.net.fc.bias'] = 'model.net.new_fc.bias'
-        
 
     runner = ptutils.runner.Runner.init(**params)
     runner.train()
@@ -341,7 +334,7 @@ def test_remapping():
 
     params['model']['net']['func'] = ThreeLayerMNIST
     params['model']['net']['name'] = 'threelayermnist'
-    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer','new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
+    params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer', 'new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
     params['load_params']['restore_params'] = re.compile(r'fc')
 
     runner = ptutils.runner.Runner.init(**params)
@@ -352,4 +345,3 @@ if __name__ == '__main__':
     test_training()
     test_validation()
     test_remapping()
-

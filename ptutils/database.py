@@ -15,9 +15,10 @@ from bson.objectid import ObjectId
 import torch
 import jsonpickle
 import jsonpickle.ext.numpy as jsonpickle_numpy
-jsonpickle_numpy.register_handlers()
 
 from .base import Base
+
+jsonpickle_numpy.register_handlers()
 
 
 class DBInterface(Base):
@@ -67,11 +68,13 @@ class MongoInterface(DBInterface):
         self.database_name = database_name
         self.collection_name = collection_name
 
+        self.checkpoint_thread = None
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
         self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
-        self._exclude_from_params = ['client', 'database', 'collection', 'filesystem']
+        self._exclude_from_params = ['client', 'database', 'collection',
+                                     'filesystem', 'checkpoint_thread']
 
     @classmethod
     def from_params(cls, database_name, collection_name, **params):
@@ -90,11 +93,11 @@ class MongoInterface(DBInterface):
     #         if name in ['host', 'port', 'database_name', 'collection_name']:
     #             repstr += '  ({}): {} \n'.format(name, param)
     #     repstr = repstr + ')'
-    #     return repstr 
+    #     return repstr
 
     # Public methods: ---------------------------------------------------------
 
-    def save(self, document, multithread=False):
+    def save(self, document, multithread=True):
         """Store a dictionary or list of dictionaries as as a document in collection.
 
         The collection is specified in the initialization of the object.
@@ -118,13 +121,12 @@ class MongoInterface(DBInterface):
 
         """
         if multithread:
-            print('MULTI')
             thread = threading.Thread(target=self._save, args=(document,))
             thread.daemon = True
             thread.start()
+            self.checkpoint_thread = thread
         else:
             self._save(document)
-
 
     def load_from_ids(self, ids):
         """Conveience function to load from a list of ObjectIds or from their
@@ -139,6 +141,7 @@ class MongoInterface(DBInterface):
                 did not exist, a None object is returned instead.
 
         """
+        self.sync_with_host()
         if type(ids) is not list:
             ids = [ids]
 
@@ -166,18 +169,17 @@ class MongoInterface(DBInterface):
             all_results: list of full documents from the collection
 
         """
+        self.sync_with_host()
         query = self._mongoify(query)
         results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
         # results = self.collection.find(query, sort=[('insertion_date', -1)])
 
         if get_tensors:
-            start = time.time()
             all_results = [self._de_mongoify(
                 self._load_tensor(doc)) for doc in results]
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
         return all_results
-
 
     def delete(self, object_id):
         """Delete a specific document from the collection based on the objectId.
@@ -196,9 +198,14 @@ class MongoInterface(DBInterface):
             self.filesystem.delete(tensor_id)
         self.collection.remove(object_id)
 
+    def sync_with_host(self):
+        if self.checkpoint_thread is not None:
+            self.checkpoint_thread.join()
+            self.checkpoint_thread = None
+
     # Private methods ---------------------------------------------------------
     def _save(self, document):
-        """Helper method that saves document in database
+        """Helper method that saves document in database.
 
         The collection is specified in the initialization of the object.
 
@@ -228,7 +235,7 @@ class MongoInterface(DBInterface):
             if 'state' in doc.keys():
                 state_on_cpu = self._move_to_cpu(doc['state'])
                 doc['state'] = state_on_cpu
-            
+
             doc_copy = copy.deepcopy(doc)
 
             # Make a list of any existing referenced gridfs files.
@@ -259,7 +266,7 @@ class MongoInterface(DBInterface):
             # Insert into the collection and restore full data into original
             # document object
             doc_copy = self._mongoify(doc_copy)
-            
+
             new_id = self.collection.save(doc_copy)
             doc['_id'] = new_id
             object_ids.append(new_id)
@@ -267,7 +274,8 @@ class MongoInterface(DBInterface):
         return object_ids
 
     def _move_to_cpu(self, state):
-        """Moves state to CPU
+        """Move state to CPU.
+
         Args:
             state (dict): A PyTorch-like state_dict
         """
@@ -357,14 +365,14 @@ class MongoInterface(DBInterface):
 
         """
         for (key, value) in document.items():
-            new_key = key.replace('.', '__') # mongo cannot use '.' in doc key
+            new_key = key.replace('.', '__')  # mongo cannot use '.' in doc key
             popped_value = document.pop(key)
             if isinstance(value, dict):
                 document[new_key] = self._mongoify(popped_value)
             elif isinstance(value, list):
-                document[new_key] = [self._mongoify(_)  if isinstance(_, (dict, type)) else _ for _ in popped_value]
+                document[new_key] = [self._mongoify(_) if isinstance(_, (dict, type)) else _ for _ in popped_value]
             else:
-                if isinstance(value, type): #mongo cannot natively serialize these; use jsonpickle
+                if isinstance(value, type):  # mongo cannot natively serialize these; use jsonpickle
                     document[new_key] = jsonpickle.encode(popped_value)
                 else:
                     document[new_key] = popped_value
@@ -382,7 +390,7 @@ class MongoInterface(DBInterface):
                     # these should be classes that were serialized with jsonpickle
                     # before being stored in the database
                     document[new_key] = jsonpickle.decode(popped_value)
-                except:
+                except Exception:
                     document[new_key] = popped_value
         return document
 
@@ -434,25 +442,25 @@ class MongoInterface(DBInterface):
 
         """
         if isinstance(value, np.ndarray) or torch.is_tensor(value):
-                data_BSON = self._tensor_to_binary(value)
-                data_MD5 = hashlib.md5(data_BSON).hexdigest()
+            data_BSON = self._tensor_to_binary(value)
+            data_MD5 = hashlib.md5(data_BSON).hexdigest()
 
-                # Does this tensor match the hash of anything in the object
-                # already?
-                match = False
-                for tensor_id in self._old_tensor_ids:
-                    print('Checking if {} is already in the db... '.format(tensor_id))
-                    if data_MD5 == self.filesystem.get(tensor_id).md5:
-                        match = True
-                        # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
-                        self._old_tensor_ids.remove(tensor_id)
-                        self._new_tensor_ids.append(tensor_id)
-                        return tensor_id
-                if not match:
-                    # print('Tensor is not in the db. Inserting new gridfs file...')
-                    tensor_id = self.filesystem.put(self._tensor_to_binary(value))
+            # Does this tensor match the hash of anything in the object
+            # already?
+            match = False
+            for tensor_id in self._old_tensor_ids:
+                print('Checking if {} is already in the db... '.format(tensor_id))
+                if data_MD5 == self.filesystem.get(tensor_id).md5:
+                    match = True
+                    # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
+                    self._old_tensor_ids.remove(tensor_id)
                     self._new_tensor_ids.append(tensor_id)
                     return tensor_id
+            if not match:
+                # print('Tensor is not in the db. Inserting new gridfs file...')
+                tensor_id = self.filesystem.put(self._tensor_to_binary(value))
+                self._new_tensor_ids.append(tensor_id)
+                return tensor_id
         elif isinstance(value, dict):
             return {k: self._save_tensors(v) for k, v in value.items()}
         elif isinstance(value, list):
