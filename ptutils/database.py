@@ -126,7 +126,7 @@ class MongoInterface(DBInterface):
             thread.start()
             self.checkpoint_thread = thread
         else:
-            self._save(document)
+            return self._save(document)
 
     def load_from_ids(self, ids):
         """Conveience function to load from a list of ObjectIds or from their
@@ -292,7 +292,10 @@ class MongoInterface(DBInterface):
         Returns:
             BSON Binary object a pickled tensor.
         """
-        return Binary(pickle.dumps(tensor.cpu(), protocol=2), subtype=128)
+        try:
+            return Binary(pickle.dumps(tensor.cpu(), protocol=2), subtype=128)
+        except AttributeError:
+            return Binary(pickle.dumps(tensor, protocol=2), subtype=128)
         # return Binary(jsonpickle.encode(tensor))
         # return jsonpickle.encode(tensor)
 
