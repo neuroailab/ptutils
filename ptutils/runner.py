@@ -298,6 +298,7 @@ class Runner(Base):
                     to_replace['devices'] = None
         return to_replace
 
+
 class HyperParameterStatisticRunner(Runner):
     def __init__(self,
                  exp_id,
@@ -324,18 +325,16 @@ class HyperParameterStatisticRunner(Runner):
                 for itt in range(self.num_iterations_per_param):
                     # change the experiment id to take into account statistic run
                     d_copy = copy.deepcopy(d)
-                    d_copy['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
-                    d_copy['load_params']['query']['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    d_copy['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
+                    d_copy['load_params']['query']['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
                     self.total_param_dict_list.append(d_copy)
         else:
             for itt in range(self.num_iterations_per_param):
                 for d in self.param_dict_list:
                     d_copy = copy.deepcopy(d)
-                    d_copy['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
-                    d_copy['load_params']['query']['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    d_copy['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
+                    d_copy['load_params']['query']['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
                     self.total_param_dict_list.append(d_copy)
-
-
 
     def train(self):
         print(self.global_step)
@@ -359,8 +358,4 @@ class HyperParameterStatisticRunner(Runner):
                       'state': self.to_state(),
                       'params': self.to_params()}
             self.dbinterface.save(record)
-            print('saved',record['exp_id'])
-
-
-
-
+            print('saved', record['exp_id'])
