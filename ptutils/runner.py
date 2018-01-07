@@ -297,3 +297,70 @@ class Runner(Base):
                 if parent_device and ('devices' in to_replace.keys()):
                     to_replace['devices'] = None
         return to_replace
+
+class HyperParameterStatisticRunner(Runner):
+    def __init__(self,
+                 exp_id,
+                 param_major=True,
+                 param_dict_list=None,
+                 num_iterations_per_param=1,
+                 global_step=None,
+                 dbinterface=None,
+                 load_params=None,
+                 **kwargs):
+        super(HyperParameterStatisticRunner, self).__init__(exp_id,
+                                                            global_step=global_step,
+                                                            dbinterface=dbinterface,
+                                                            load_params=load_params,
+                                                            **kwargs)
+        self.param_dict_list = param_dict_list
+        self.num_iterations_per_param = num_iterations_per_param
+        # If outer loop of train is over params or statistics
+        self.param_major = param_major
+        # expand out the list of experiments to run
+        self.total_param_dict_list = []
+        if self.param_major is True:
+            for d in self.param_dict_list:
+                for itt in range(self.num_iterations_per_param):
+                    # change the experiment id to take into account statistic run
+                    d_copy = copy.deepcopy(d)
+                    d_copy['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    d_copy['load_params']['query']['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    self.total_param_dict_list.append(d_copy)
+        else:
+            for itt in range(self.num_iterations_per_param):
+                for d in self.param_dict_list:
+                    d_copy = copy.deepcopy(d)
+                    d_copy['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    d_copy['load_params']['query']['exp_id'] = d['exp_id']+'_statistic_run_'+str(itt)
+                    self.total_param_dict_list.append(d_copy)
+
+
+
+    def train(self):
+        print(self.global_step)
+        runner_list = self.total_param_dict_list[self.global_step:]
+        for param_dict in runner_list:
+            print(param_dict['exp_id'])
+            print(param_dict['load_params']['query']['exp_id'])
+
+            if len(self.dbinterface.load({'exp_id': param_dict['exp_id']})) > 0 and self.load_params['restore'] is True:
+                print(param_dict['exp_id'])
+                print(param_dict['load_params']['query']['exp_id'])
+                param_dict['load_params']['restore'] = True
+
+            runner = param_dict['func'].init(**param_dict)
+            runner.train()
+            self.global_step += 1
+
+            record = {'exp_id': self.exp_id,
+                      'linked_exp_id': param_dict['exp_id'],
+                      'step': self.global_step,
+                      'state': self.to_state(),
+                      'params': self.to_params()}
+            self.dbinterface.save(record)
+            print('saved',record['exp_id'])
+
+
+
+

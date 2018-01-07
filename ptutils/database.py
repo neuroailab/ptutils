@@ -4,10 +4,9 @@ import time
 import gridfs
 import hashlib
 import datetime
+import threading
 import numpy as np
 import pymongo as pm
-import pickle
-import threading
 import cPickle as pickle
 from bson.binary import Binary
 from bson.objectid import ObjectId
@@ -97,7 +96,7 @@ class MongoInterface(DBInterface):
 
     # Public methods: ---------------------------------------------------------
 
-    def save(self, document, multithread=True):
+    def save(self, document, multithreaded=True):
         """Store a dictionary or list of dictionaries as as a document in collection.
 
         The collection is specified in the initialization of the object.
@@ -109,18 +108,18 @@ class MongoInterface(DBInterface):
         also be stored in the 'tensor_id' key-value pair.  If re-saving an
         object- the method will check for old gridfs objects and delete them.
 
-        If multithread is true, calls private _save method to spawn new thread.
+        If multithreaded is true, calls private _save method to spawn new thread.
 
         Args:
             document: dictionary of arbitrary size and structure,
             can contain tensors. Can also be a list of such objects.
-            multithread (boolean, Optional)
+            multithreaded (boolean, Optional)
 
         Returns:
             id_values: list of ObjectIds of the inserted object(s).
 
         """
-        if multithread:
+        if multithreaded:
             thread = threading.Thread(target=self._save, args=(document,))
             thread.daemon = True
             thread.start()
@@ -179,6 +178,7 @@ class MongoInterface(DBInterface):
                 self._load_tensor(doc)) for doc in results]
         else:
             all_results = [self._de_mongoify(doc) for doc in results]
+
         return all_results
 
     def delete(self, object_id):
@@ -357,7 +357,7 @@ class MongoInterface(DBInterface):
             return [MongoInterface._extract_data_from_variables(v) for v in value]
         return value
 
-    def _mongoify(self, document):
+    def __mongoify(self, document):
         """Modify the document so that it can be stored in MongoDB.
 
         Called before saving to the database. Replaces '.' (which are rejected
@@ -367,21 +367,58 @@ class MongoInterface(DBInterface):
             document: dict to be saved in mongo
 
         """
-        for (key, value) in document.items():
+        # for (key, value) in document.items():
+        for key in document:
+            print(key)
+        for key in document:
             new_key = key.replace('.', '__')  # mongo cannot use '.' in doc key
-            popped_value = document.pop(key)
-            if isinstance(value, dict):
+            document[new_key] = document.pop(key)
+            print('key: {}'.format(key))
+            if isinstance(popped_value, dict):
+                print('dict: {}'.format(key))
                 document[new_key] = self._mongoify(popped_value)
-            elif isinstance(value, list):
-                document[new_key] = [self._mongoify(_) if isinstance(_, (dict, type)) else _ for _ in popped_value]
+            # elif isinstance(popped_value, list):
+                # document[new_key] = [self._mongoify(_) if isinstance(_, (dict, type)) else _ for _ in popped_value]
             else:
-                if isinstance(value, type):  # mongo cannot natively serialize these; use jsonpickle
+                if isinstance(popped_value, type):  # mongo cannot natively serialize these; use jsonpickle
+                    print('type: {}'.format(key))
                     document[new_key] = jsonpickle.encode(popped_value)
                 else:
                     document[new_key] = popped_value
         return document
 
-    def _de_mongoify(self, document):
+    def _mongoify(self, value):
+        """Modify the document so that it can be stored in MongoDB.
+
+        Called before saving to the database. Replaces '.' (which are rejected
+        by mongo) in keys with '__'  and serializes objects that are unserializable.
+
+        Args:
+            document: dict to be saved in mongo
+
+        """
+        # for (key, value) in document.items():
+        if isinstance(value, type):
+            return jsonpickle.encode(value)
+        elif isinstance(value, dict):
+            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [self._mongoify(v) for v in value]
+        else:
+            return value
+
+    def _de_mongoify(self, value):
+        if isinstance(value, dict):
+            return {k.replace('__', '.'): self._de_mongoify(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [self._de_mongoify(v) for v in value]
+        else:
+            try:
+                return jsonpickle.decode(value)
+            except Exception:
+                return value
+
+    def __de_mongoify(self, document):
         # untested
         for (key, value) in document.items():
             new_key = key.replace('__', '.')  # mongo cannot use '.' in doc key

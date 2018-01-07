@@ -44,19 +44,24 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
         ptutils.base.Base.__init__(self, **kwargs)
 
 
+CUDA = 0
+USE_CUDA = False
+MONGO_PORT = 27017
+exp_id = 'mnist_example'
+
 # Experiment Params
 params = {
     'func': ptutils.runner.Runner,
     'name': 'MNISTRunner',
-    'exp_id': "mnist_example_test",
-    'description': 'The \'Hello, Wordl!\' of deep learning',
+    'exp_id': exp_id,
+    'description': 'The \'Hello, World!\' of deep learning',
 
     # Define Model Params
     'model': {
         'func': ptutils.model.Model,
         'name': 'MNIST',
-        'use_cuda': True,
-        'devices': 1,
+        'use_cuda': USE_CUDA,
+        'devices': CUDA,
 
         'net': {
             'func': MNIST,
@@ -78,42 +83,45 @@ params = {
         'func': ptutils.data.MNISTProvider,
         'name': 'MNISTProvider',
         'n_threads': 4,
-        'batch_size': 128,
+        'batch_size': 64,
         'modes': ('train', 'test')},
 
     # Define DBInterface Params
     'dbinterface': {
         'func': ptutils.database.MongoInterface,
         'name': 'mongo',
-        'port': 27017,
+        'port': MONGO_PORT,
         'host': 'localhost',
-        'database_name': 'ptutils',
-        'collection_name': 'ptutils'},
+        'database_name': 'ptutils_test',
+        'collection_name': 'ptutils_test'},
 
     'train_params': {
-        'num_steps': 50,
-        'train': True},
+        'num_steps': 50
+    },
 
-    'validation_params': {},
+    'validation_params': {
+    },
 
     'save_params': {
-        'metric_freq': 25},
+        'metric_freq': 25,
+        'val_freq': 10},
 
     'load_params': {
-        'exp_id': 'mnist_example_test',
         'restore': False,
+        'dbinterface': {
+            'func': ptutils.database.MongoInterface,
+            'name': 'mongo',
+            'port': MONGO_PORT,
+            'host': 'localhost',
+            'database_name': 'ptutils_test',
+            'collection_name': 'ptutils_test'},
+        'query': {'exp_id': exp_id},
         'restore_params': None,
-        'restore_mapping': None}}
+        'restore_mapping': None
+    }
+}
 
 
-runner = ptutils.runner.Runner.from_params(**params)
-runner.train_from_params()
-
-runner.load_params['restore'] = True
-runner.train_params['num_steps'] = 100
-runner.train_from_params()
-
-runner.exp_id = 'new_exp_id'
-runner.train_params['num_steps'] = 200
-runner.train_from_params()
-runner.dbinterface.collection.drop()
+runner = ptutils.runner.Runner.init(**params)
+runner.train()
+# runner.dbinterface.collection.drop()

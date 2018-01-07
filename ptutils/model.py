@@ -31,15 +31,16 @@ class Model(Base):
         if hasattr(self.optimizer, 'defaults'):
             self.optimizer.optimizer = self.optimizer.optimizer_class(params,
                                                    **self.optimizer.defaults)
-        else: 
+        else:
             self.optimizer.optimizer = self.optimizer.optimizer_class(params)
         self._loss = None
-        self.net.cuda(self.devices)
+        if self.use_cuda:
+            self.net.cuda(self.devices)
 
 #    @property
 #    def optimizer(self):
 #        return self._optimizer
-#    
+#
 #    @optimizer.setter
 #    def optimizer(self, value):
 #        self._optimizer = value

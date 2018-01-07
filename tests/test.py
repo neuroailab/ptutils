@@ -611,7 +611,7 @@ class TestMongoInterface(Test):
 
     def test_save(self):
         doc = {'exp_id': 'test_save', 'step': 0}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save'})
         self.assertDictContainsSubset({'exp_id': 'test_save', 'step': 0}, r.next())
@@ -619,7 +619,7 @@ class TestMongoInterface(Test):
     def test_save_numpy_array(self):
         array = np.array([1, 2, 3])
         doc = {'exp_id': 'test_save_numpy_array', 'array': array}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_numpy_array'})
         self.assertIsInstance(r.next()['array'], ObjectId)
@@ -627,7 +627,7 @@ class TestMongoInterface(Test):
     def test_save_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
         doc = {'exp_id': 'test_save_torch_tensor', 'tensor': tensor}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_torch_tensor'})
         self.assertIsInstance(r.next()['tensor'], ObjectId)
@@ -638,7 +638,7 @@ class TestMongoInterface(Test):
         b.linear = linear
         state = b.to_state()
         doc = {'exp_id': 'test_save_state', 'state': state}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_save_state'})
         for param in r.next()['state'].values():
@@ -646,21 +646,21 @@ class TestMongoInterface(Test):
 
     def test_load(self):
         doc = {'exp_id': 'test_load', 'step': 0}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.dbinterface.load({'exp_id': 'test_load'})
         self.assertDictContainsSubset({'exp_id': 'test_load', 'step': 0}, r[0])
 
     def test_load_numpy_array(self):
         array = np.array([1, 2, 3])
         doc = {'exp_id': 'test_load_numpy_array', 'array': array}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.dbinterface.load({'exp_id': 'test_load_numpy_array'})
         self.assertTrue(np.array_equal(doc['array'], r[0]['array']))
 
     def test_load_torch_tensor(self):
         tensor = torch.Tensor([1, 2, 3])
         doc = {'exp_id': 'test_load_torch_tensor', 'tensor': tensor}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.dbinterface.load({'exp_id': 'test_load_torch_tensor'})
         self.assertTrue(torch.equal(doc['tensor'], r[0]['tensor']))
 
@@ -670,7 +670,7 @@ class TestMongoInterface(Test):
         b.linear = linear
         state = b.to_state()
         doc = {'exp_id': 'test_load_state', 'state': state}
-        self.dbinterface.save(doc, multithread=False)
+        self.dbinterface.save(doc, multithreaded=False)
         r = self.dbinterface.load({'exp_id': 'test_load_state'})
         restored_state = r[0]['state']
         self.assertItemsEqual(state.keys(), restored_state.keys())
@@ -679,7 +679,7 @@ class TestMongoInterface(Test):
 
     def test_delete(self):
         doc = {'exp_id': 'test_delete', 'step': 0}
-        object_id = self.dbinterface.save(doc, multithread=False)
+        object_id = self.dbinterface.save(doc, multithreaded=False)
         self.dbinterface.delete(object_id[0])
         r = self.conn[self.database_name][self.collection_name].find(
             {'exp_id': 'test_delete'})
