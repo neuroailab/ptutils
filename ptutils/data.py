@@ -118,9 +118,9 @@ class MNISTProvider(DataProvider):
         self.n_threads = n_threads
         for mode in self.modes:
             setattr(self, mode, MNIST(root='../tests/resources/data/',
-                               train=(mode == 'train'),
-                               transform=transforms.ToTensor(),
-                               download=True))
+                                      train=(mode == 'train'),
+                                      transform=transforms.ToTensor(),
+                                      download=True))
 
         self.train_dataloader = iter(DataLoader(dataset=self.train,
                                                 batch_size=batch_size,

@@ -26,7 +26,7 @@ class Model(Base):
         self.net = net
         self.criterion = criterion
         self.optimizer = optimizer
-        if self.optimizer.params == None:
+        if self.optimizer.params is None:
             params = self.net.parameters()
         if hasattr(self.optimizer, 'defaults'):
             self.optimizer.optimizer = self.optimizer.optimizer_class(params,
