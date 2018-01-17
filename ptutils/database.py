@@ -387,6 +387,29 @@ class MongoInterface(DBInterface):
                     document[new_key] = popped_value
         return document
 
+    # def _mongoify(self, document):
+    #     """Modify the document so that it can be stored in MongoDB.
+    #     Called before saving to the database. Replaces '.' (which are rejected
+    #     by mongo) in keys with '__'  and serializes objects that are unserializable.
+    #     Args:
+    #         document: dict to be saved in mongo
+    #     """
+    #     for (key, value) in document.items():
+    #         # print(key, value)
+    #         if isinstance(key, str):
+    #             new_key = key.replace('.', '__') # mongo cannot use '.' in doc key
+    #         popped_value = document.pop(key)
+    #         if isinstance(value, dict):
+    #             document[new_key] = self._mongoify(popped_value)
+    #         elif isinstance(value, list):
+    #             document[new_key] = [self._mongoify(_)  if isinstance(_, (dict, type)) else _ for _ in popped_value]
+    #         else:
+    #             if isinstance(value, type): #mongo cannot natively serialize these; use jsonpickle
+    #                 document[new_key] = jsonpickle.encode(popped_value)
+    #             else:
+    #                 document[new_key] = popped_value
+    #     return document
+
     def _mongoify(self, value):
         """Modify the document so that it can be stored in MongoDB.
 
@@ -401,7 +424,7 @@ class MongoInterface(DBInterface):
         if isinstance(value, type):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
-            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items()}
+            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items() if isinstance(k, (str,unicode))}
         elif isinstance(value, list):
             return [self._mongoify(v) for v in value]
         else:

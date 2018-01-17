@@ -64,7 +64,10 @@ class Base(object):
         bases, params = self._get_bases_and_params()
         for name, base in bases.items():
             try:
+                # if not isinstance(base, BaseList):
                 params[name] = base.to_params()
+                # else:
+                #     params[name] = [i.to_params() for i in base]
             except AttributeError as params_error:
                 try:
                     params[name] = collections.OrderedDict({'func': base.__class__})
@@ -79,10 +82,11 @@ class Base(object):
         if 'func' in params:
             # params is itself a base.
             func = params['func']
-
             for key, value in params.items():
-                if isinstance(value, dict):
+                if isinstance(value, dict) and all(isinstance(x, (str,unicode)) for x in value):
                     params[key] = func.from_params(**value)
+                elif isinstance(value, dict) and not all(isinstance(x, (str,unicode)) for x in value):
+                    params[key] = value
             return func(**params)
         else:
             # params isn't a base.
