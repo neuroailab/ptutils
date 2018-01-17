@@ -8,22 +8,44 @@ were.
 """
 from __future__ import print_function
 
-import os
 import re
-import copy
+import inspect
 import logging
 import collections
+from functools import wraps
 from collections import Iterable
+
 import torch
-import torch.nn as nn
-import torch.optim as optim
 
 logging.basicConfig()
 log = logging.getLogger(__name__)
 log.setLevel('DEBUG')
 
 
+def decorator(function):
+    name = function.__name__
+    def wrapped(self, *args, **kwargs):
+        result = function(self, *args, **kwargs)
+        try:
+            self.TAG_STORE[type(self).__name__ + '.' + name](self)
+        except KeyError:
+            pass
+        return result
+    return wrapped
+
+
+class MetaBase(type):
+    def __new__(meta, class_name, bases, class_dict):
+        for name, item in class_dict.items():
+            if callable(item) and not item.__name__.startswith('_'):
+            # if callable(item):
+                class_dict[name] = decorator(item)
+        return type.__new__(meta, class_name, bases, class_dict)
+
+
 class Base(object):
+    __metaclass__ = MetaBase
+    TAG_STORE = {}
 
     def __init__(self, *args, **kwargs):
 
@@ -31,6 +53,7 @@ class Base(object):
         self.name = kwargs.get('name', type(self).__name__.lower())
         if not hasattr(self, '_exclude_from_params'):
             self._exclude_from_params = []
+        self._ptutils_tags = {}
 
         # this prevents the backend for torch.nn.Modules
         # from being serialized in the database
@@ -50,7 +73,25 @@ class Base(object):
             for key, value in kwargs.items():
                 setattr(self, key, value)
 
+    @classmethod
+    def after(cls, tagged_method):
+        TAG_STORE = '_ptutils_tags'
+
+        def wrapper(method):
+            cls.TAG_STORE[cls.__name__ + '.' + tagged_method] = method
+
+            @wraps(method)
+            def wrapped(self, *method_args, **method_kwargs):
+                return method(self, *method_args, **method_kwargs)
+
+            return wrapped
+
+        return wrapper
+
     def to_params(self):
+        return self._to_params(self)
+
+    def _to_params(self, value):
         """Generate dictionary representation of base.
 
         The params dict of a given base contains the following key-value
@@ -61,28 +102,31 @@ class Base(object):
             'use_cuda' (bool): whether base should be moved to its devices
 
         """
-        bases, params = self._get_bases_and_params()
-        for name, base in bases.items():
-            try:
-                params[name] = base.to_params()
-            except AttributeError as params_error:
-                try:
-                    params[name] = collections.OrderedDict({'func': base.__class__})
-                except AttributeError as state_error:
-                    log.warning(str(params_error) + str(state_error))
-        params = {name: param for name, param in params.items()
-                  if param is not None and name not in self._exclude_from_params}
-        return params
+        if isinstance(value, (Base, torch.nn.Module)):
+            value.func = value.__class__
+            return value._to_params({k: v for k, v in value.__dict__.items()
+                                     if k not in self._exclude_from_params})
+        elif isinstance(value, dict):
+            return {k: self._to_params(v) for k, v in value.items()
+                    if k not in self._exclude_from_params}
+        elif isinstance(value, list) and len(value) > 0:
+            return [self._to_params(v) for v in value]
+        else:
+            return value
 
     @classmethod
-    def from_params(cls, **params):
-        if 'func' in params:
-            # params is itself a base.
-            func = params['func']
-            for key, value in params.items():
-                if isinstance(value, dict):
-                    params[key] = func.from_params(**value)
-            return func(**params)
+    def from_params(cls, params):
+        if isinstance(params, dict):
+            if 'func' in params:  # assume we are given a func dictionary
+
+                func = params['func']
+                return func(**{k: cls.from_params(v) for k, v in params.items()})
+            else:
+                # othwerwise, just return the dictionary
+                return {k: cls.from_params(p) for k, p in params.items()}
+                # return params  # othwerwise, just return the dictionary
+        elif isinstance(params, list):
+            return [cls.from_params(p) for p in params]
         else:
             # params isn't a base.
             return params
@@ -186,7 +230,7 @@ class Base(object):
         bases = {}
         params = {}
         for key, value in self.__dict__.items():
-            if isinstance(value, (Base, torch.nn.Module)):
+            if isinstance(value, (Base, torch.nn.Module)) and key != 'parent':
                 bases[key] = value
             elif isinstance(value, list) and len(value) > 0 and all(isinstance(x, Base) for x in value):
                 value = BaseList(value)
@@ -202,20 +246,20 @@ class Base(object):
         return self.__getattr__(name)
 
     # def __repr__(self):
-    #     """Return module string representation."""
-    #     repstr = '{} ({}): ('.format(type(self).__name__, self.name)
-    #     if self._bases:
-    #         repstr += '\n'
-    #     for name, base in self._bases.items():
-    #         basestr = base.__repr__()
-    #         basestr = _addindent(basestr, 2)
-    #         repstr += '  {}\n'.format(basestr)
-    #     repstr = repstr + ')'
-    #     return repstr
+        """Return module string representation."""
+        # repstr = '{} ({}): ('.format(type(self).__name__, self.name)
+        # if self._bases:
+        #     repstr += '\n'
+        # for name, base in self._bases.items():
+        #     basestr = base.__repr__()
+        #     basestr = _addindent(basestr, 2)
+        #     repstr += '  {}\n'.format(basestr)
+        # repstr = repstr + ')'
+        # return str(self.to_params())
 
 
 class BaseList(Base):
-    """Hold subBases in a list. Modeled after the torch.nn.ModuleList
+    """Hold subBases in a list. Modeled after the torch.nn.ModuleList.
 
     BaseList can be indexed like a regular Python list, but basess it
     contains are properly registered, and will be visible by all Base methods.
@@ -254,7 +298,7 @@ class BaseList(Base):
         return keys
 
     def append(self, base):
-        r"""Appends a given module to the end of the list.
+        """Append a given module to the end of the list.
 
         Arguments:
             module (nn.Module): module to append
@@ -263,7 +307,7 @@ class BaseList(Base):
         return self
 
     def add_base(self, name, base):
-        """Adds a child module to the current module.
+        """Add a child module to the current module.
 
         The module can be accessed as an attribute using the given name.
 
@@ -280,7 +324,7 @@ class BaseList(Base):
         self._bases[name] = base
 
     def extend(self, bases):
-        r"""Appends modules from a Python iterable to the end of the list.
+        """Append modules from a Python iterable to the end of the list.
 
         Arguments:
             modules (iterable): iterable of modules to append
