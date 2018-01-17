@@ -118,7 +118,6 @@ class Base(object):
     def from_params(cls, params):
         if isinstance(params, dict):
             if 'func' in params:  # assume we are given a func dictionary
-
                 func = params['func']
                 return func(**{k: cls.from_params(v) for k, v in params.items()})
             else:
@@ -229,12 +228,17 @@ class Base(object):
     def _get_bases_and_params(self):
         bases = {}
         params = {}
+
+        if 'func' not in self.__dict__.keys():
+            params['func'] = type(self)
+
         for key, value in self.__dict__.items():
             if isinstance(value, (Base, torch.nn.Module)) and key != 'parent':
                 bases[key] = value
             elif isinstance(value, list) and len(value) > 0 and all(isinstance(x, Base) for x in value):
                 value = BaseList(value)
-                bases[key] = key
+
+                bases[key] = value
             else:
                 params[key] = value
         return bases, params
@@ -269,9 +273,11 @@ class BaseList(Base):
     """
 
     def __init__(self, bases=None, *args, **kwargs):
-        super(BaseList, self).__init__(*args, **kwargs)
+
+        self._bases = {}
         if bases is not None:
             self += bases
+        super(BaseList, self).__init__(*args, **kwargs)
 
     def __getitem__(self, idx):
         if not (-len(self) <= idx < len(self)):

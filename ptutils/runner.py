@@ -311,11 +311,6 @@ class HyperParameterStatisticRunner(Runner):
                  dbinterface=None,
                  load_params=None,
                  **kwargs):
-        super(HyperParameterStatisticRunner, self).__init__(exp_id,
-                                                            global_step=global_step,
-                                                            dbinterface=dbinterface,
-                                                            load_params=load_params,
-                                                            **kwargs)
         self.param_dict_list = param_dict_list
         self.num_iterations_per_param = num_iterations_per_param
         # If outer loop of train is over params or statistics
@@ -337,6 +332,13 @@ class HyperParameterStatisticRunner(Runner):
                     d_copy['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
                     d_copy['load_params']['query']['exp_id'] = d['exp_id'] + '_statistic_run_' + str(itt)
                     self.total_param_dict_list.append(d_copy)
+
+        super(HyperParameterStatisticRunner, self).__init__(exp_id,
+                                                            global_step=global_step,
+                                                            dbinterface=dbinterface,
+                                                            load_params=load_params,
+                                                            **kwargs)
+                    
 
     def train(self):
         print(self.global_step)
