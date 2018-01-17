@@ -4,12 +4,17 @@ The 'Hello, World!' of deep learning.
 
 """
 import sys
+import logging
 
 import torch
 import torch.nn as nn
 
 sys.path.insert(0, '../')
 import ptutils
+
+logging.basicConfig()
+log = logging.getLogger(__name__)
+log.setLevel('DEBUG')
 
 
 class MNIST(torch.nn.Module, ptutils.base.Base):
@@ -44,8 +49,67 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
         ptutils.base.Base.__init__(self, **kwargs)
 
 
+class AverageMeter(ptutils.base.Base):
+    """Compute and stores the average and current value."""
+
+    def __init__(self, **kwargs):
+        super(AverageMeter, self).__init__(**kwargs)
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+
+class OnlineLossAggregator(ptutils.base.Base):
+
+    def __init__(self, **kwargs):
+        super(OnlineLossAggregator, self).__init__(**kwargs)
+        self.loss_meter = AverageMeter()
+
+    def __repr__(self):
+        return 'Monitor'
+
+    @staticmethod
+    @ptutils.runner.Runner.after('step')
+    def average_loss(runner):
+        try:
+            runner.online_aggregator.loss_meter.update(runner.model._loss.data[0])
+        except AttributeError:
+            pass
+        log.info('step: {}; loss {:.4f} ({:.4f})'.format(runner.global_step,
+                                                         runner.online_aggregator.loss_meter.val,
+                                                         runner.online_aggregator.loss_meter.avg))
+
+    # @staticmethod
+    # @ptutils.model.Model.after('forward')
+    # def method1(model):
+        # try:
+        # print(model)
+        # self.loss_meter.update(model._loss.data[0])
+        # except AttributeError:
+        # pass
+        # print('Loss {:.4f} ({:.4f})'.format(self.loss_meter.val,
+        # self.loss_meter.avg))
+
+
+# @ptutils.runner.Runner.after('step')
+# def print_base(base):
+#     print('----')
+#     print(base)
+#     print('----')
+
+
 CUDA = 0
-USE_CUDA = False
+USE_CUDA = True
 MONGO_PORT = 27017
 exp_id = 'mnist_example'
 
@@ -95,6 +159,10 @@ params = {
         'database_name': 'ptutils_test',
         'collection_name': 'ptutils_test'},
 
+    'online_aggregator': {
+        'func': OnlineLossAggregator,
+    },
+
     'train_params': {
         'num_steps': 50
     },
@@ -122,6 +190,6 @@ params = {
 }
 
 
-runner = ptutils.runner.Runner.init(**params)
+runner = ptutils.runner.Runner.init(params)
 runner.train()
-# runner.dbinterface.collection.drop()
+runner.dbinterface.collection.drop()
