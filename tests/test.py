@@ -133,7 +133,7 @@ class TestBase(unittest.TestCase):
         params = {'func': self.test_class,
                   'test_param_name': 'test_param_value',
                   'test_base_name': self.test_class}
-        base = self.test_class.from_params(**params)
+        base = self.test_class.from_params(params)
         self.assertDictContainsSubset(params, base.to_params())
 
     # def test_from_params(self):
@@ -728,7 +728,7 @@ class TestRunner(Test):
         params = {'func': self.test_class,
                   'exp_id': 'test_exp_id',
                   'global_step': 10}
-        runner_obj = self.test_class.from_params(**params)
+        runner_obj = self.test_class.from_params(params)
         self.assertDictContainsSubset(params, runner_obj.to_params())
 
     @unittest.skip('skipping...')

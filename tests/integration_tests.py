@@ -170,7 +170,7 @@ def test_training():
     assert conn[params['dbinterface']['database_name']][params['dbinterface']['collection_name']].find({'exp_id': new_exp_id}).count() == 0
 
     # Actually run the training.
-    runner = ptutils.runner.Runner.init(**params)
+    runner = ptutils.runner.Runner.init(params)
     runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
@@ -183,7 +183,7 @@ def test_training():
     # Revive the experiment using little more than load_params.
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
 
-    runner = ptutils.runner.Runner.init(**revive_params)
+    runner = ptutils.runner.Runner.init(revive_params)
     runner.train()
 
     # Test if the number of saved documents is correct: (num_steps / metric_freq).
@@ -198,7 +198,7 @@ def test_training():
     params['model']['devices'] = 1
     expected_num_records = (params['train_params']['num_steps'] - previous_num_steps) // params['save_params']['metric_freq']
 
-    runner = ptutils.runner.Runner.init(**params)
+    runner = ptutils.runner.Runner.init(params)
     runner.train()
 
     assert runner.dbinterface.collection.find({'exp_id': params['exp_id']}).count() == expected_num_records
@@ -230,7 +230,7 @@ def test_validation():
                                                         ['collection_name']].find({'exp_id': params['exp_id']}).count() == 0
 
     # actually run the model
-    runner = ptutils.runner.Runner.init(**params)
+    runner = ptutils.runner.Runner.init(params)
     runner.test()
 
     assert conn[params['dbinterface']['database_name']][params['dbinterface']
@@ -245,7 +245,7 @@ def test_validation():
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
     revive_params['validation_params'] = {'num_steps': 10}
 
-    runner = ptutils.runner.Runner.init(**revive_params)
+    runner = ptutils.runner.Runner.init(revive_params)
     runner.train()
 
 
@@ -324,7 +324,7 @@ def test_remapping():
     params['load_params']['restore_mapping']['model.net.fc.weight'] = 'model.net.new_fc.weight'
     params['load_params']['restore_mapping']['model.net.fc.bias'] = 'model.net.new_fc.bias'
 
-    runner = ptutils.runner.Runner.init(**params)
+    runner = ptutils.runner.Runner.init(params)
     runner.train()
 
     exp_id = 'mnist_remapped_new_arch'
@@ -337,7 +337,7 @@ def test_remapping():
     params['load_params']['restore_mapping'] = {'model.net.' + key: 'model.net.' + re.sub('layer', 'new_layer', key) for key in MNIST().state_dict().keys() if 'layer' in key}
     params['load_params']['restore_params'] = re.compile(r'fc')
 
-    runner = ptutils.runner.Runner.init(**params)
+    runner = ptutils.runner.Runner.init(params)
     runner.train()
 
 
