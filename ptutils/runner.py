@@ -69,7 +69,7 @@ class Runner(Base):
 # -- Runner Properties ---------------------------------------------------------
 
     @classmethod
-    def init(cls, **params):
+    def init(cls, params):
         """Initialize the :class:`Runner`.
 
         This is the user's primary means of initializing the :class:`Runner`. The function is
@@ -96,17 +96,18 @@ class Runner(Base):
                 'restore_params': None,
                 'restore_mapping': None}}
 
-            runner = ptutils.runner.Runner.init(**params)
+            runner = ptutils.runner.Runner.init(params)
             runner.train()
         """
-        runner = Base.from_params(**params)
+        # runner = Base.from_params(**params)
+        runner = Base.from_params(params)
         if runner.load_params['restore']:
             loaded_run = runner.load_run()
             loaded_params = loaded_run['params']
             loaded_state = loaded_run['state']
             if loaded_params:
                 loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
-                runner = Runner.from_params(**loaded_params)
+                runner = Runner.from_params(loaded_params)
             runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
 
         if runner.exp_id is None:
@@ -242,7 +243,8 @@ class Runner(Base):
         recent entry in the database is returned.
 
         """
-        load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        # load_dbinterface = self.load_params['dbinterface']['func'](**self.load_params['dbinterface'])
+        load_dbinterface = self.load_params['dbinterface']
 
         # filter for results that have the state saved
         # so that the state can be restored
