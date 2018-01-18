@@ -195,9 +195,11 @@ class MongoInterface(DBInterface):
             object_id: an id of an object in the database.
         """
         document_to_delete = self.collection.find_one({"_id": object_id})
-        tensors_to_delete = document_to_delete['_tensor_ids']
-        for tensor_id in tensors_to_delete:
-            self.filesystem.delete(tensor_id)
+        # TODO: Fix _tensor_ids so that they can be removed from gridfs
+        # when the document is removed.
+        # tensors_to_delete = document_to_delete['_tensor_ids']
+        # for tensor_id in tensors_to_delete:
+            # self.filesystem.delete(tensor_id)
         self.collection.remove(object_id)
 
     def sync_with_host(self):
