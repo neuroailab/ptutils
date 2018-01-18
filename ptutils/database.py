@@ -73,7 +73,9 @@ class MongoInterface(DBInterface):
         self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
         self._exclude_from_params = ['client', 'database', 'collection',
-                                     'filesystem', 'checkpoint_thread']
+                                     'filesystem', 'checkpoint_thread',
+                                     '_old_tensor_ids', '_new_tensor_ids',
+                                     '_tensor_ids']
 
     @classmethod
     def from_params(cls, database_name, collection_name, **params):
@@ -239,25 +241,25 @@ class MongoInterface(DBInterface):
             doc_copy = copy.deepcopy(doc)
 
             # Make a list of any existing referenced gridfs files.
-            try:
-                self._old_tensor_ids = doc_copy['_tensor_ids']
-            except KeyError:
-                self._old_tensor_ids = []
+            # try:
+                # self._old_tensor_ids = doc_copy['_tensor_ids']
+            # except KeyError:
+                # self._old_tensor_ids = []
 
-            self._new_tensor_ids = []
+            # self._new_tensor_ids = []
 
             # Replace tensors with either a new gridfs file or a reference to
             # the old gridfs file.
             doc_copy = self._save_tensors(doc_copy)
 
-            doc['_tensor_ids'] = self._new_tensor_ids
-            doc_copy['_tensor_ids'] = self._new_tensor_ids
+            # doc['_tensor_ids'] = self._new_tensor_ids
+            # doc_copy['_tensor_ids'] = self._new_tensor_ids
 
             # Cleanup any remaining gridfs files (these used to be pointed to by document, but no
             # longer match any tensor that was in the db.
-            for id in self._old_tensor_ids:
-                self.filesystem.delete(id)
-            self._old_tensor_ids = []
+            # for id in self._old_tensor_ids:
+                # self.filesystem.delete(id)
+            # self._old_tensor_ids = []
 
             # Add insertion date field to every document.
             doc['insertion_date'] = datetime.datetime.now()
@@ -424,7 +426,8 @@ class MongoInterface(DBInterface):
         if isinstance(value, type):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
-            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items() if isinstance(k, (str,unicode))}
+            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items()
+                    if isinstance(k, (str,unicode))}
         elif isinstance(value, list):
             return [self._mongoify(v) for v in value]
         else:
@@ -522,7 +525,7 @@ class MongoInterface(DBInterface):
             # if not match:
                 # print('Tensor is not in the db. Inserting new gridfs file...')
                 tensor_id = self.filesystem.put(self._tensor_to_binary(value))
-                self._new_tensor_ids.append(tensor_id)
+                # self._new_tensor_ids.append(tensor_id)
                 return tensor_id
         elif isinstance(value, dict):
             return {k: self._save_tensors(v) for k, v in value.items()}
