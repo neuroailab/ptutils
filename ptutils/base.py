@@ -44,6 +44,7 @@ class MetaBase(type):
 
 
 class Base(object):
+    _exclude_from_params = []
     __metaclass__ = MetaBase
     TAG_STORE = {}
 
@@ -91,6 +92,7 @@ class Base(object):
     def to_params(self):
         return self._to_params(self)
 
+    # @classmethod
     def _to_params(self, value):
         """Generate dictionary representation of base.
 
@@ -102,13 +104,19 @@ class Base(object):
             'use_cuda' (bool): whether base should be moved to its devices
 
         """
-        if isinstance(value, (Base, torch.nn.Module)):
+        if isinstance(value, (Base, torch.nn.Module, torch.optim.Optimizer)):
             value.func = value.__class__
-            return value._to_params({k: v for k, v in value.__dict__.items()
-                                     if k not in self._exclude_from_params})
+            try:
+                return value._to_params({k: v for k, v in value.__dict__.items()
+                                         if k not in self._exclude_from_params})
+            except AttributeError as e:
+                return {'func': value.func}
+                return self._to_params({k: v for k, v in value.__dict__.items()
+                                         if k not in self._exclude_from_params})
+                # return value
         elif isinstance(value, dict):
             return {k: self._to_params(v) for k, v in value.items()
-                    if k not in self._exclude_from_params}
+                    if isinstance(k, str) and k not in self._exclude_from_params}
         elif isinstance(value, list) and len(value) > 0:
             return [self._to_params(v) for v in value]
         else:

@@ -2,12 +2,12 @@ import bson
 import copy
 import time
 import gridfs
-import pickle
 import hashlib
 import datetime
 import threading
 import numpy as np
 import pymongo as pm
+import cPickle as pickle
 from bson.binary import Binary
 from bson.objectid import ObjectId
 
@@ -505,21 +505,21 @@ class MongoInterface(DBInterface):
 
         """
         if isinstance(value, np.ndarray) or torch.is_tensor(value):
-            data_BSON = self._tensor_to_binary(value)
-            data_MD5 = hashlib.md5(data_BSON).hexdigest()
+            # data_BSON = self._tensor_to_binary(value)
+            # data_MD5 = hashlib.md5(data_BSON).hexdigest()
 
-            # Does this tensor match the hash of anything in the object
-            # already?
-            match = False
-            for tensor_id in self._old_tensor_ids:
-                print('Checking if {} is already in the db... '.format(tensor_id))
-                if data_MD5 == self.filesystem.get(tensor_id).md5:
-                    match = True
-                    # print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
-                    self._old_tensor_ids.remove(tensor_id)
-                    self._new_tensor_ids.append(tensor_id)
-                    return tensor_id
-            if not match:
+            # # Does this tensor match the hash of anything in the object
+            # # already?
+            # match = False
+            # for tensor_id in self._old_tensor_ids:
+            #     print('Checking if {} is already in the db... '.format(tensor_id))
+            #     if data_MD5 == self.filesystem.get(tensor_id).md5:
+            #         match = True
+            #         print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
+            #         self._old_tensor_ids.remove(tensor_id)
+            #         self._new_tensor_ids.append(tensor_id)
+            #         return tensor_id
+            # if not match:
                 # print('Tensor is not in the db. Inserting new gridfs file...')
                 tensor_id = self.filesystem.put(self._tensor_to_binary(value))
                 self._new_tensor_ids.append(tensor_id)
