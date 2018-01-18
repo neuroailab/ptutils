@@ -65,7 +65,7 @@ class Criterion(nn.CrossEntropyLoss, ptutils.base.Base):
 
     def __init__(self, **kwargs):
         super(Criterion, self).__init__()
-        ptutils.base.Base.__init__(self, **kwargs)
+        # ptutils.base.Base.__init__(self, **kwargs)
 
 
 def setup_params(exp_id=None):
@@ -88,7 +88,9 @@ def setup_params(exp_id=None):
                 'name': 'mnist'},
             'criterion': {
                 'func': Criterion,
-                'name': 'crossentropy'},
+                'func': nn.CrossEntropyLoss,
+                # 'name': 'crossentropy',
+                },
             'optimizer': {
                 'func': ptutils.optimizer.Optimizer,
                 'name': 'sgd_optimizer',
@@ -244,7 +246,6 @@ def test_validation():
     # Revive the experiment using little more than load_params.
     revive_params = {k: v for k, v in params.items() if k in ['func', 'exp_id', 'load_params', 'train_params']}
     revive_params['validation_params'] = {'num_steps': 10}
-
     runner = ptutils.runner.Runner.init(revive_params)
     runner.train()
 

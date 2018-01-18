@@ -111,12 +111,11 @@ class Base(object):
                                          if k not in self._exclude_from_params})
             except AttributeError as e:
                 return {'func': value.func}
-                return self._to_params({k: v for k, v in value.__dict__.items()
-                                         if k not in self._exclude_from_params})
-                # return value
+                # return self._to_params({k: v for k, v in value.__dict__.items()
+                                         # if k not in self._exclude_from_params})
         elif isinstance(value, dict):
             return {k: self._to_params(v) for k, v in value.items()
-                    if isinstance(k, str) and k not in self._exclude_from_params}
+                    if isinstance(k, (str, unicode)) and k not in self._exclude_from_params}
         elif isinstance(value, list) and len(value) > 0:
             return [self._to_params(v) for v in value]
         else:
@@ -125,13 +124,17 @@ class Base(object):
     @classmethod
     def from_params(cls, params):
         if isinstance(params, dict):
-            if 'func' in params:  # assume we are given a func dictionary
+            if 'func' in params:  # Assume we are given a func dictionary
                 func = params['func']
-                return func(**{k: cls.from_params(v) for k, v in params.items()})
+                try:
+                    return func(**{k: cls.from_params(v) for k, v in params.items()})
+                except TypeError:
+                    # Must be a native torch.nn.Module that doesn't expect 'func' kwarg
+                    func = params.pop('func')
+                    return func(**{k: cls.from_params(v) for k, v in params.items()})
             else:
-                # othwerwise, just return the dictionary
+                # Othwerwise, call from_params on dict values
                 return {k: cls.from_params(p) for k, p in params.items()}
-                # return params  # othwerwise, just return the dictionary
         elif isinstance(params, list):
             return [cls.from_params(p) for p in params]
         else:
@@ -212,7 +215,10 @@ class Base(object):
             self.devices = devices
         bases, _ = self._get_bases_and_params()
         for base in bases.values():
-            base.assign_devices(devices=self.devices)
+            try:
+                base.assign_devices(devices=self.devices)
+            except AttributeError:  # Allow non-base, native torch.nn.Modules
+                pass
 
     def base_cpu(self):
         """Move all Bases to the CPU."""
