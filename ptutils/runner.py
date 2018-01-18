@@ -1,7 +1,7 @@
 """ptutils Runner."""
 
-import logging
 import copy
+import logging
 
 from ptutils.base import Base
 from .error import StepError, ExpIDError, LoadError
@@ -108,7 +108,9 @@ class Runner(Base):
             if loaded_params:
                 loaded_params = Runner._replace_params(runner.to_params(), loaded_params)
                 runner = Runner.from_params(loaded_params)
-            runner.from_state(loaded_state, restore_params=runner.load_params.get('restore_params'), restore_mapping=runner.load_params.get('restore_mapping'))
+            runner.from_state(loaded_state,
+                              restore_params=runner.load_params.get('restore_params'),
+                              restore_mapping=runner.load_params.get('restore_mapping'))
 
         if runner.exp_id is None:
             error_msg = 'Cannot run an experiment without an exp_id'
@@ -116,7 +118,7 @@ class Runner(Base):
             raise ExpIDError(error_msg)
 
         if (not runner.exp_id == runner.load_params['query']['exp_id']) and len(runner.dbinterface.load({'exp_id': runner.exp_id})) > 0:
-            # if not resuming training, exp_id must be unique
+            # If not resuming training, exp_id must be unique
             error_msg = 'Cannot run a new experiment with same exp_id as an existing record'
             log.critical(error_msg)
             raise ExpIDError(error_msg)
@@ -338,7 +340,7 @@ class HyperParameterStatisticRunner(Runner):
                                                             dbinterface=dbinterface,
                                                             load_params=load_params,
                                                             **kwargs)
-                    
+
 
     def train(self):
         print(self.global_step)
