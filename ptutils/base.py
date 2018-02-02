@@ -44,7 +44,6 @@ class MetaBase(type):
 
 
 class Base(object):
-    _exclude_from_params = []
     __metaclass__ = MetaBase
     TAG_STORE = {}
 
@@ -91,6 +90,10 @@ class Base(object):
 
     def to_params(self):
         return self._to_params(self)
+        # params_dict = self._to_params(self)
+        # if ['func'] not in params_dict.keys():
+        #     params_dict['func'] = type(self)
+        # return params_dict
 
     # @classmethod
     def _to_params(self, value):
@@ -126,6 +129,7 @@ class Base(object):
         if isinstance(params, dict):
             if 'func' in params:  # Assume we are given a func dictionary
                 func = params['func']
+
                 try:
                     return func(**{k: cls.from_params(v) for k, v in params.items()})
                 except TypeError:
@@ -275,7 +279,11 @@ class Base(object):
         # repstr = repstr + ')'
         # return str(self.to_params())
 
-
+class BaseList2(Base):
+    def __init__(self, bases=None, *args, **kwargs):
+        for idx, base in enumerate(bases):
+            setattr(self, 'base_'+str(idx), base)
+        super(BaseList2, self).__init__(*args, **kwargs)
 class BaseList(Base):
     """Hold subBases in a list. Modeled after the torch.nn.ModuleList.
 
