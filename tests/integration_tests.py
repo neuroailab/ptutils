@@ -88,7 +88,7 @@ def setup_params(exp_id=None):
                 'name': 'mnist'},
             'criterion': {
                 'func': Criterion,
-                'func': nn.CrossEntropyLoss,
+                # 'func': nn.CrossEntropyLoss,
                 # 'name': 'crossentropy',
                 },
             'optimizer': {

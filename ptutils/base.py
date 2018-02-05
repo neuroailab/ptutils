@@ -89,11 +89,12 @@ class Base(object):
         return wrapper
 
     def to_params(self):
-        return self._to_params(self)
         # params_dict = self._to_params(self)
         # if ['func'] not in params_dict.keys():
         #     params_dict['func'] = type(self)
         # return params_dict
+        
+        return self._to_params(self)
 
     # @classmethod
     def _to_params(self, value):
@@ -129,13 +130,22 @@ class Base(object):
         if isinstance(params, dict):
             if 'func' in params:  # Assume we are given a func dictionary
                 func = params['func']
-
-                try:
-                    return func(**{k: cls.from_params(v) for k, v in params.items()})
-                except TypeError:
-                    # Must be a native torch.nn.Module that doesn't expect 'func' kwarg
-                    func = params.pop('func')
-                    return func(**{k: cls.from_params(v) for k, v in params.items()})
+                d = {}
+                for k,v in params.items():
+                    try:
+                        d[k] = cls.from_params(v)
+                    except:
+                        d[k] = v
+                return func(**d)
+                # d = {k: cls.from_params(v) if  for k, v in params.items()}
+                # return func(**)
+                # try:
+                #     return func(**{k: cls.from_params(v) for k, v in params.items()})
+                # except TypeError:
+                #     # Must be a native torch.nn.Module that doesn't expect 'func' kwarg
+                #     func = params.pop('func')
+                #     print('err', func)                    
+                #     return func(**{k: cls.from_params(v) for k, v in params.items()})
             else:
                 # Othwerwise, call from_params on dict values
                 return {k: cls.from_params(p) for k, p in params.items()}
