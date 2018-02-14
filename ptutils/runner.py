@@ -254,7 +254,8 @@ class Runner(Base):
             query = copy.copy(self.load_params['query'])
             query['state'] = {'$exists': True}
 
-        all_results = load_dbinterface.load(query)
+
+        all_results = load_dbinterface.load(query, from_load_run=True)
 
         try:
             # Load most recent run.

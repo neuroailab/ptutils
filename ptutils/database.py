@@ -160,7 +160,7 @@ class MongoInterface(DBInterface):
 
         return out
 
-    def load(self, query, get_tensors=True):
+    def load(self, query, get_tensors=True, from_load_run=False):
         """Perform a search using the presented query.
 
         Args:
@@ -171,7 +171,8 @@ class MongoInterface(DBInterface):
 
         """
         self.sync_with_host()
-        query = self._mongoify(query)
+        if from_load_run is False:
+            query = self._mongoify(query)
         results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
         # results = self.collection.find(query, sort=[('insertion_date', -1)])
 
@@ -428,7 +429,7 @@ class MongoInterface(DBInterface):
         if isinstance(value, type):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
-            return {k.replace('.', '__'): self._mongoify(v) for k, v in value.items()
+            return {k.replace('.', '__').replace('$','____'): self._mongoify(v) for k, v in value.items()
                     if isinstance(k, (str,unicode))}
         elif isinstance(value, list):
             return [self._mongoify(v) for v in value]
@@ -437,7 +438,7 @@ class MongoInterface(DBInterface):
 
     def _de_mongoify(self, value):
         if isinstance(value, dict):
-            return {k.replace('__', '.'): self._de_mongoify(v) for k, v in value.items()}
+            return {k.replace('__', '.').replace('____','$'): self._de_mongoify(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._de_mongoify(v) for v in value]
         else:
