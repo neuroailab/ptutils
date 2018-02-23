@@ -5,6 +5,7 @@ import gridfs
 import hashlib
 import datetime
 import threading
+import collections
 import numpy as np
 import pymongo as pm
 import cPickle as pickle
@@ -426,7 +427,7 @@ class MongoInterface(DBInterface):
 
         """
         # for (key, value) in document.items():
-        if isinstance(value, type):
+        if isinstance(value, (type, collections.Callable)):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
             return {k.replace('.', '__').replace('$','____'): self._mongoify(v) for k, v in value.items()
