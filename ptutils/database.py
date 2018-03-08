@@ -70,7 +70,15 @@ class MongoInterface(DBInterface):
         self.checkpoint_thread = None
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
-        self.collection = self.database[self.collection_name]
+        if self.collection_name not in self.database.collection_names():
+            print('making index')
+            self.collection = self.database[self.collection_name]
+            print(dir(self.collection))
+
+
+            self.collection.create_index('exp_id')
+        else:
+            self.collection = self.database[self.collection_name]
         self.filesystem = gridfs.GridFS(self.database)
         self._exclude_from_params = ['client', 'database', 'collection',
                                      'filesystem', 'checkpoint_thread',
