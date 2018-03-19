@@ -9,6 +9,7 @@ import collections
 import numpy as np
 import pymongo as pm
 import cPickle as pickle
+from shapely.geometry import Polygon, Point
 from bson.binary import Binary
 from bson.objectid import ObjectId
 
@@ -434,7 +435,7 @@ class MongoInterface(DBInterface):
 
         """
         # for (key, value) in document.items():
-        if isinstance(value, (type, collections.Callable)):
+        if isinstance(value, (type, collections.Callable, Point, Polygon)):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
             return {k.replace('.', '__').replace('$','____'): self._mongoify(v) for k, v in value.items()
