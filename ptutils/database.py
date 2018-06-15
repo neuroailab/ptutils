@@ -212,7 +212,8 @@ class MongoInterface(DBInterface):
             # self.filesystem.delete(tensor_id)
         self.collection.remove(object_id)
 
-    def sync_with_host(self):
+    def sync_with_host(self, sleeptime=0):
+        time.sleep(sleeptime)
         if self.checkpoint_thread is not None:
             self.checkpoint_thread.join()
             self.checkpoint_thread = None
@@ -520,29 +521,16 @@ class MongoInterface(DBInterface):
 
         """
         if isinstance(value, np.ndarray) or torch.is_tensor(value):
-            # data_BSON = self._tensor_to_binary(value)
-            # data_MD5 = hashlib.md5(data_BSON).hexdigest()
-
-            # # Does this tensor match the hash of anything in the object
-            # # already?
-            # match = False
-            # for tensor_id in self._old_tensor_ids:
-            #     print('Checking if {} is already in the db... '.format(tensor_id))
-            #     if data_MD5 == self.filesystem.get(tensor_id).md5:
-            #         match = True
-            #         print('Tensor is already in the db. Replacing tensor with old OjbectId: {}'.format(tensor_id))
-            #         self._old_tensor_ids.remove(tensor_id)
-            #         self._new_tensor_ids.append(tensor_id)
-            #         return tensor_id
-            # if not match:
-                # print('Tensor is not in the db. Inserting new gridfs file...')
-                tensor_id = self.filesystem.put(self._tensor_to_binary(value))
-                # self._new_tensor_ids.append(tensor_id)
-                return tensor_id
+            # print(value)
+            tensor_id = self.filesystem.put(self._tensor_to_binary(value))
+            # self._new_tensor_ids.append(tensor_id)
+            return tensor_id
         elif isinstance(value, dict):
             return {k: self._save_tensors(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._save_tensors(v) for v in value]
+        # elif isinstance(value, tuple):
+        #     print(value)
 
         elif isinstance(value, np.number):
             if isinstance(value, np.integer):
