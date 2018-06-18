@@ -9,8 +9,10 @@ were.
 from __future__ import print_function
 
 import re
+import sys
 import inspect
 import logging
+import traceback
 import collections
 from functools import wraps
 from collections import Iterable, OrderedDict
@@ -110,10 +112,23 @@ class Base(object):
         """
         if isinstance(value, (Base, torch.nn.Module, torch.optim.Optimizer)):
             value.func = value.__class__
+            # if hasattr(value, '_to_params'):
+            #     return value._to_params({k: v for k, v in value.__dict__.items()
+            #                              if k not in self._exclude_from_params})
+            # else:
+            #     return {'func': value.func}
+            # if isinstance(value, torch.nn.Module):
+            #     print('mod',value)
+                
+            # elif isinstance(value, torch.optim.Optimizer):
+            #     print('optim', value)
+            # elif isinstance(value, Base):
+            #     print('Base', value)
             try:
                 return value._to_params({k: v for k, v in value.__dict__.items()
                                          if k not in self._exclude_from_params})
             except AttributeError as e:
+                # print('errored', value)
                 return {'func': value.func}
                 # return self._to_params({k: v for k, v in value.__dict__.items()
                                          # if k not in self._exclude_from_params})
@@ -134,22 +149,22 @@ class Base(object):
         if isinstance(params, dict):
             if 'func' in params:  # Assume we are given a func dictionary
                 func = params['func']
-                d = {}
-                for k,v in params.items():
-                    try:
-                        d[k] = cls.from_params(v)
-                    except:
-                        d[k] = v
-                return func(**d)
-                # d = {k: cls.from_params(v) if  for k, v in params.items()}
-                # return func(**)
-                # try:
-                #     return func(**{k: cls.from_params(v) for k, v in params.items()})
-                # except TypeError:
-                #     # Must be a native torch.nn.Module that doesn't expect 'func' kwarg
-                #     func = params.pop('func')
-                #     print('err', func)                    
-                #     return func(**{k: cls.from_params(v) for k, v in params.items()})
+                d = {k: cls.from_params(v) for k, v in params.items()}
+                # d = {}
+                # for k,v in params.items():
+                    
+                #     try:
+                #         d[k] = cls.from_params(v)
+                #     except:
+                #         d[k] = v
+                try:
+                    return func(**d)
+                # except:
+                except Exception, e:
+                    log.error(str(e))
+                    traceback.print_exc()
+                    print('could not make: ', func)
+                    sys.exit(1)
             else:
                 # Othwerwise, call from_params on dict values
                 return {k: cls.from_params(p) for k, p in params.items()}
