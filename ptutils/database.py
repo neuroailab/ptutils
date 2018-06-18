@@ -370,6 +370,9 @@ class MongoInterface(DBInterface):
                     for k, v in value.items()}
         elif isinstance(value, list):
             return [MongoInterface._extract_data_from_variables(v) for v in value]
+        elif isinstance(value, tuple):
+            return tuple(MongoInterface._extract_data_from_variables(v) for v in value)
+        
         return value
 
     def __mongoify(self, document):
@@ -443,6 +446,9 @@ class MongoInterface(DBInterface):
                     if isinstance(k, (str,unicode))}
         elif isinstance(value, list):
             return [self._mongoify(v) for v in value]
+        elif isinstance(value, tuple):
+            return tuple(self._mongoify(v) for v in value)
+        
         else:
             return value
 
@@ -451,6 +457,9 @@ class MongoInterface(DBInterface):
             return {k.replace('__', '.').replace('____','$'): self._de_mongoify(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._de_mongoify(v) for v in value]
+        elif isinstance(value, tuple):
+            return tuple(self._de_mongoify(v) for v in value)
+        
         else:
             try:
                 return jsonpickle.decode(value)
@@ -529,8 +538,8 @@ class MongoInterface(DBInterface):
             return {k: self._save_tensors(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._save_tensors(v) for v in value]
-        # elif isinstance(value, tuple):
-        #     print(value)
+        elif isinstance(value, tuple):
+            return tuple(self._save_tensors(v) for v in value)
 
         elif isinstance(value, np.number):
             if isinstance(value, np.integer):
@@ -566,6 +575,8 @@ class MongoInterface(DBInterface):
             return {k: self._load_tensor(v) for k, v in value.items()}
         elif isinstance(value, list):
             return [self._load_tensor(v) for v in value]
+        elif isinstance(value, tuple):
+            return tuple(self._load_tensor(v) for v in value)
 
         return value
 

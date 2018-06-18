@@ -123,6 +123,9 @@ class Base(object):
                     if isinstance(k, (str, unicode)) and k not in self._exclude_from_params})
         elif isinstance(value, list) and len(value) > 0:
             return [self._to_params(v) for v in value]
+        elif isinstance(value, tuple) and len(value) > 0:
+            return tuple(self._to_params(v) for v in value)
+        
         else:
             return value
 
@@ -152,6 +155,9 @@ class Base(object):
                 return {k: cls.from_params(p) for k, p in params.items()}
         elif isinstance(params, list):
             return [cls.from_params(p) for p in params]
+        elif isinstance(params, tuple):
+            return tuple(cls.from_params(p) for p in params)
+        
         else:
             # params isn't a base.
             return params
@@ -202,6 +208,10 @@ class Base(object):
         elif isinstance(restore_params, list):
             restore_params = [name for name in state.keys()
                               if name in restore_params]
+        elif isinstance(restore_params, tuple):
+            restore_params = tuple(name for name in state.keys()
+                              if name in restore_params)
+            
         else:
             raise TypeError('restore_params ({}) unsupported.'
                             .format(type(restore_params)))
