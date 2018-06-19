@@ -69,7 +69,7 @@ class MongoInterface(DBInterface):
         self.database_name = database_name
         self.collection_name = collection_name
 
-        self.checkpoint_thread = None
+        self.checkpoint_threads = []
         self.client = pm.MongoClient(self.host, self.port)
         self.database = self.client[self.database_name]
 
@@ -82,7 +82,7 @@ class MongoInterface(DBInterface):
 
         self.filesystem = gridfs.GridFS(self.database)
         self._exclude_from_params = ['client', 'database', 'collection',
-                                     'filesystem', 'checkpoint_thread',
+                                     'filesystem', 'checkpoint_threads',
                                      '_old_tensor_ids', '_new_tensor_ids',
                                      '_tensor_ids']
 
@@ -134,7 +134,7 @@ class MongoInterface(DBInterface):
             thread = threading.Thread(target=self._save, args=(document,))
             thread.daemon = True
             thread.start()
-            self.checkpoint_thread = thread
+            self.checkpoint_threads.append(thread)
         else:
             return self._save(document)
 
@@ -214,9 +214,10 @@ class MongoInterface(DBInterface):
 
     def sync_with_host(self, sleeptime=0):
         time.sleep(sleeptime)
-        if self.checkpoint_thread is not None:
-            self.checkpoint_thread.join()
-            self.checkpoint_thread = None
+        if len(self.checkpoint_threads) != 0:
+            for thread in self.checkpoint_threads:
+                thread.join()
+            self.checkpoint_threads = []
 
     # Private methods ---------------------------------------------------------
     def _save(self, document):
