@@ -169,7 +169,7 @@ class MongoInterface(DBInterface):
 
         return out
 
-    def load(self, query, get_tensors=True, from_load_run=False):
+    def load(self, query, get_tensors=True, from_load_run=False, return_all=False):
         """Perform a search using the presented query.
 
         Args:
@@ -182,7 +182,10 @@ class MongoInterface(DBInterface):
         self.sync_with_host()
         if from_load_run is False:
             query = self._mongoify(query)
-        results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
+        if return_all is False:
+            results = self.collection.find(query, sort=[('insertion_date', -1)]).limit(1)
+        else:
+            results = self.collection.find(query, sort=[('insertion_date', -1)])
         # results = self.collection.find(query, sort=[('insertion_date', -1)])
 
         if get_tensors:
