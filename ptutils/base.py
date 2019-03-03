@@ -95,7 +95,7 @@ class Base(object):
         # if ['func'] not in params_dict.keys():
         #     params_dict['func'] = type(self)
         # return params_dict
-        
+
         return self._to_params(self)
 
     # @classmethod
@@ -119,15 +119,15 @@ class Base(object):
             #     return {'func': value.func}
             # if isinstance(value, torch.nn.Module):
             #     print('mod',value)
-                
+
             # elif isinstance(value, torch.optim.Optimizer):
             #     print('optim', value)
             # elif isinstance(value, Base):
             #     print('Base', value)
             try:
-                return value._to_params({k: v for k, v in value.__dict__.items()
-                                         if k not in self._exclude_from_params})
+                return value._to_params({k: v for k, v in value.__dict__.items()})
             except AttributeError as e:
+                print(e)
                 # print('errored', value)
                 return {'func': value.func}
                 # return self._to_params({k: v for k, v in value.__dict__.items()
@@ -140,7 +140,7 @@ class Base(object):
             return [self._to_params(v) for v in value]
         elif isinstance(value, tuple) and len(value) > 0:
             return tuple(self._to_params(v) for v in value)
-        
+
         else:
             return value
 
@@ -152,7 +152,7 @@ class Base(object):
                 d = {k: cls.from_params(v) for k, v in params.items()}
                 # d = {}
                 # for k,v in params.items():
-                    
+
                 #     try:
                 #         d[k] = cls.from_params(v)
                 #     except:
@@ -172,7 +172,7 @@ class Base(object):
             return [cls.from_params(p) for p in params]
         elif isinstance(params, tuple):
             return tuple(cls.from_params(p) for p in params)
-        
+
         else:
             # params isn't a base.
             return params
@@ -182,7 +182,10 @@ class Base(object):
         bases, _ = self._get_bases_and_params()
         if destination is None:
             destination = collections.OrderedDict()
+            destination._metadata = OrderedDict()
         for name, base in bases.items():
+            if name in self._exclude_from_params:
+                continue
             if isinstance(base, torch.nn.Module):
                 try:
                     base.state_dict(destination, prefix + name + '.')
@@ -226,7 +229,7 @@ class Base(object):
         elif isinstance(restore_params, tuple):
             restore_params = tuple(name for name in state.keys()
                               if name in restore_params)
-            
+
         else:
             raise TypeError('restore_params ({}) unsupported.'
                             .format(type(restore_params)))

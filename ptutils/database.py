@@ -376,7 +376,7 @@ class MongoInterface(DBInterface):
             return [MongoInterface._extract_data_from_variables(v) for v in value]
         elif isinstance(value, tuple):
             return tuple(MongoInterface._extract_data_from_variables(v) for v in value)
-        
+
         return value
 
     def __mongoify(self, document):
@@ -452,7 +452,7 @@ class MongoInterface(DBInterface):
             return [self._mongoify(v) for v in value]
         elif isinstance(value, tuple):
             return tuple(self._mongoify(v) for v in value)
-        
+
         else:
             return value
 
@@ -463,7 +463,7 @@ class MongoInterface(DBInterface):
             return [self._de_mongoify(v) for v in value]
         elif isinstance(value, tuple):
             return tuple(self._de_mongoify(v) for v in value)
-        
+
         else:
             try:
                 return jsonpickle.decode(value)
@@ -534,7 +534,6 @@ class MongoInterface(DBInterface):
 
         """
         if isinstance(value, np.ndarray) or torch.is_tensor(value):
-            # print(value)
             tensor_id = self.filesystem.put(self._tensor_to_binary(value))
             # self._new_tensor_ids.append(tensor_id)
             return tensor_id
