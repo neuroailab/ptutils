@@ -160,7 +160,7 @@ class Base(object):
                 try:
                     return func(**d)
                 # except:
-                except Exception, e:
+                except Exception as e:
                     log.error(str(e))
                     traceback.print_exc()
                     print('could not make: ', func)
