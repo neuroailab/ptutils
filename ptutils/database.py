@@ -8,7 +8,7 @@ import threading
 import collections
 import numpy as np
 import pymongo as pm
-import cPickle as pickle
+import  pickle
 from shapely.geometry import Polygon, Point
 from bson.binary import Binary
 from bson.objectid import ObjectId
@@ -444,7 +444,7 @@ class MongoInterface(DBInterface):
             return jsonpickle.encode(value)
         elif isinstance(value, dict):
             return {k.replace('.', '__').replace('$','____'): self._mongoify(v) for k, v in value.items()
-                    if isinstance(k, (str,unicode))}
+                    if isinstance(k, (str,bytes))}
         elif isinstance(value, list):
             return [self._mongoify(v) for v in value]
         elif isinstance(value, tuple):

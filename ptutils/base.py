@@ -160,7 +160,7 @@ class Base(object):
                 try:
                     return func(**d)
                 # except:
-                except Exception, e:
+                except Exception as e:
                     log.error(str(e))
                     traceback.print_exc()
                     print('could not make: ', func)
@@ -182,6 +182,7 @@ class Base(object):
         bases, _ = self._get_bases_and_params()
         if destination is None:
             destination = collections.OrderedDict()
+            destination._metadata = OrderedDict()
         for name, base in bases.items():
             if isinstance(base, torch.nn.Module):
                 try:
