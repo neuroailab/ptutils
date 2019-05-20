@@ -135,7 +135,7 @@ class Base(object):
         elif isinstance(value, (dict, OrderedDict)):
             dictfunc = type(value)
             return dictfunc({k: self._to_params(v) for k, v in value.items()
-                    if isinstance(k, (str, unicode)) and k not in self._exclude_from_params})
+                    if isinstance(k, (bytes, str)) and k not in self._exclude_from_params})
         elif isinstance(value, list) and len(value) > 0:
             return [self._to_params(v) for v in value]
         elif isinstance(value, tuple) and len(value) > 0:
